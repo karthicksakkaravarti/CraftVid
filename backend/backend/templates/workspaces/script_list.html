@@ -1,0 +1,227 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% translate "Scripts" %} | {{ workspace.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-8">
+  <!-- Header -->
+  <div class="flex justify-between items-start mb-8">
+    <div>
+      <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
+        <a href="{% url 'workspaces:list' %}" class="hover:text-blue-600">
+          {% translate "Workspaces" %}
+        </a>
+        <span>/</span>
+        <a href="{% url 'workspaces:detail' workspace.id %}" class="hover:text-blue-600">
+          {{ workspace.name }}
+        </a>
+        <span>/</span>
+        <span>{% translate "Scripts" %}</span>
+      </div>
+      <h1 class="text-3xl font-bold text-gray-900">{% translate "Scripts" %}</h1>
+      <p class="text-gray-600 mt-1">
+        {% translate "Manage your video scripts in" %} {{ workspace.name }}
+      </p>
+    </div>
+    <div>
+      <a href="{% url 'workspaces:script_editor' workspace.id %}" class="btn-primary">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+          <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+        </svg>
+        {% translate "Generate New Script" %}
+      </a>
+    </div>
+  </div>
+
+  <!-- Scripts list -->
+  <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+    {% if scripts %}
+      <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+          <thead class="bg-gray-50">
+            <tr>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {% translate "Title" %}
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {% translate "Topic" %}
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {% translate "Status" %}
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {% translate "Version" %}
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {% translate "Created" %}
+              </th>
+              <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                {% translate "Actions" %}
+              </th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            {% for script in scripts %}
+              <tr class="hover:bg-gray-50" data-script-id="{{ script.id }}">
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <a href="{% url 'workspaces:script_management' workspace.id script.id %}" class="text-blue-600 hover:text-blue-800 font-medium">
+                    {{ script.title }}
+                  </a>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  {{ script.topic }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  <span class="px-2 py-1 text-xs font-medium rounded-full 
+                    {% if script.status == 'draft' %}bg-yellow-100 text-yellow-800{% endif %}
+                    {% if script.status == 'final' %}bg-green-100 text-green-800{% endif %}
+                    {% if script.status == 'archived' %}bg-gray-100 text-gray-800{% endif %}
+                  ">
+                    {{ script.get_status_display }}
+                  </span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  v{{ script.version }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap">
+                  {{ script.created_at|date:"M d, Y" }}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <div class="flex items-center space-x-3">
+                    <a href="{% url 'workspaces:script_management' workspace.id script.id %}" class="text-blue-600 hover:text-blue-900">
+                      {% translate "View" %}
+                    </a>
+                    <button class="delete-script-btn text-red-600 hover:text-red-900" data-script-id="{{ script.id }}" data-script-title="{{ script.title }}">
+                      {% translate "Delete" %}
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="p-8 text-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        <h3 class="text-lg font-medium text-gray-900 mb-2">{% translate "No scripts yet" %}</h3>
+        <p class="text-gray-500 mb-6">{% translate "Get started by generating your first script." %}</p>
+        <a href="{% url 'workspaces:script_editor' workspace.id %}" class="btn-primary">
+          {% translate "Generate New Script" %}
+        </a>
+      </div>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div id="deleteModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center hidden z-50">
+  <div class="bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+    <div class="mb-4">
+      <h3 class="text-lg font-bold text-gray-900">{% translate "Delete Script" %}</h3>
+      <p class="text-gray-600 mt-2">{% translate "Are you sure you want to delete this script?" %}</p>
+      <p class="font-medium text-gray-800 mt-1" id="deleteScriptTitle"></p>
+    </div>
+    <div class="flex justify-end gap-3">
+      <button id="cancelDeleteBtn" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">
+        {% translate "Cancel" %}
+      </button>
+      <button id="confirmDeleteBtn" class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">
+        {% translate "Delete" %}
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const deleteModal = document.getElementById('deleteModal');
+    const deleteScriptTitle = document.getElementById('deleteScriptTitle');
+    const cancelDeleteBtn = document.getElementById('cancelDeleteBtn');
+    const confirmDeleteBtn = document.getElementById('confirmDeleteBtn');
+    let scriptToDelete = null;
+    let workspaceId = '{{ workspace.id }}';
+    
+    // Show delete confirmation modal
+    document.querySelectorAll('.delete-script-btn').forEach(button => {
+      button.addEventListener('click', function() {
+        const scriptId = this.dataset.scriptId;
+        const scriptTitle = this.dataset.scriptTitle;
+        
+        scriptToDelete = scriptId;
+        deleteScriptTitle.textContent = scriptTitle;
+        deleteModal.classList.remove('hidden');
+      });
+    });
+    
+    // Hide modal on cancel
+    cancelDeleteBtn.addEventListener('click', function() {
+      deleteModal.classList.add('hidden');
+      scriptToDelete = null;
+    });
+    
+    // Close modal when clicking outside
+    deleteModal.addEventListener('click', function(e) {
+      if (e.target === deleteModal) {
+        deleteModal.classList.add('hidden');
+        scriptToDelete = null;
+      }
+    });
+    
+    // Handle delete confirmation
+    confirmDeleteBtn.addEventListener('click', function() {
+      if (!scriptToDelete) return;
+      
+      // Show loading state
+      confirmDeleteBtn.disabled = true;
+      confirmDeleteBtn.innerHTML = '{% translate "Deleting..." %}';
+      
+      // Send delete request
+      fetch(`/workspaces/api/workspaces/${workspaceId}/scripts/${scriptToDelete}/`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': '{{ csrf_token }}'
+        }
+      })
+      .then(response => {
+        if (response.ok || response.status === 204) {
+          // Remove the row from the table
+          const row = document.querySelector(`tr[data-script-id="${scriptToDelete}"]`);
+          if (row) {
+            row.remove();
+          }
+          
+          // Check if there are any scripts left
+          const remainingRows = document.querySelectorAll('tbody tr');
+          if (remainingRows.length === 0) {
+            // Reload the page to show the empty state
+            window.location.reload();
+          }
+          
+          // Hide the modal
+          deleteModal.classList.add('hidden');
+        } else {
+          throw new Error('Failed to delete script');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred while deleting the script.');
+      })
+      .finally(() => {
+        // Reset button state
+        confirmDeleteBtn.disabled = false;
+        confirmDeleteBtn.innerHTML = '{% translate "Delete" %}';
+        scriptToDelete = null;
+      });
+    });
+  });
+</script>
+{% endblock %} 

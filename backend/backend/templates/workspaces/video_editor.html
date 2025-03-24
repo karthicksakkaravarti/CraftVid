@@ -1,0 +1,867 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% translate "Video Editor" %} | {{ script.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .media-card {
+    transition: all 0.3s ease;
+  }
+
+  .media-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+
+  .media-card.selected {
+    border-color: #6366f1;
+    background-color: #eef2ff;
+  }
+
+  .media-thumbnail {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 0.375rem;
+  }
+
+  .loading-overlay {
+    background-color: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(4px);
+    z-index: 50;
+  }
+
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 3px solid rgba(79, 70, 229, 0.2);
+    border-top-color: rgba(79, 70, 229, 1);
+    animation: spinner 1s linear infinite;
+  }
+
+  @keyframes spinner {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .scene-card {
+    border-left: 4px solid #6366f1;
+  }
+
+  .audio-player {
+    width: 100%;
+    margin-top: 0.5rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-8">
+  <!-- Header -->
+  <div class="flex justify-between items-start mb-8">
+    <div>
+      <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
+        <a href="{% url 'workspaces:list' %}" class="hover:text-blue-600">
+          {% translate "Workspaces" %}
+        </a>
+        <span>/</span>
+        <a href="{% url 'workspaces:detail' workspace.id %}" class="hover:text-blue-600">
+          {{ workspace.name }}
+        </a>
+        <span>/</span>
+        <a href="{% url 'workspaces:script_list' workspace.id %}" class="hover:text-blue-600">
+          {% translate "Scripts" %}
+        </a>
+        <span>/</span>
+        <a href="{% url 'workspaces:script_management' workspace.id script.id %}" class="hover:text-blue-600">
+          {{ script.title }}
+        </a>
+        <span>/</span>
+        <span>{% translate "Video Editor" %}</span>
+      </div>
+      <h1 class="text-3xl font-bold text-gray-900">{% translate "Video Editor" %}</h1>
+      <p class="text-gray-600 mt-1">
+        {% translate "Create a video from your script, images, and voice-overs" %}
+      </p>
+    </div>
+    <div>
+      <a href="{% url 'workspaces:script_management' workspace.id script.id %}" class="btn-secondary">
+        {% translate "Back to Script" %}
+      </a>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <!-- Video generation form -->
+    <div class="lg:col-span-1">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">{% translate "Generate Video" %}</h2>
+
+        <form id="videoGenerationForm" class="space-y-4">
+          {% csrf_token %}
+
+          <div>
+            <label for="quality" class="block text-sm font-medium text-gray-700 mb-1">
+              {% translate "Video Quality" %}
+            </label>
+            <select id="quality" name="quality" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+              <option value="low">{% translate "Low (640x360)" %}</option>
+              <option value="medium" selected>{% translate "Medium (1280x720)" %}</option>
+              <option value="high">{% translate "High (1920x1080)" %}</option>
+              <option value="ultra">{% translate "Ultra (3840x2160)" %}</option>
+            </select>
+            <p class="mt-1 text-xs text-gray-500">
+              {% translate "Higher quality will take longer to generate" %}
+            </p>
+          </div>
+
+          <div>
+            <label for="background_music_id" class="block text-sm font-medium text-gray-700 mb-1">
+              {% translate "Background Music" %}
+            </label>
+            <div class="flex space-x-2">
+              <select id="background_music_id" name="background_music_id" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="">{% translate "None" %}</option>
+                {% for music in background_music %}
+                  <option value="{{ music.id }}">{{ music.name }}</option>
+                {% endfor %}
+              </select>
+              <button 
+                type="button" 
+                id="uploadMusicBtn"
+                class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M12 5v14M5 12h14"/>
+                </svg>
+                {% translate "Upload" %}
+              </button>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">
+              {% translate "Select background music or upload a new audio file" %}
+            </p>
+          </div>
+
+          <!-- Video Effect Selection -->
+          <div>
+            <label for="effect" class="block text-sm font-medium text-gray-700 mb-1">
+              {% translate "Video Effect" %}
+            </label>
+            <select id="effect" name="effect" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+              <option value="">{% translate "No Effect" %}</option>
+              
+              <!-- Basic Effects -->
+              <optgroup label="{% translate 'Basic Effects' %}">
+                <option value="ken_burns">{% translate "Ken Burns (Zoom & Pan)" %}</option>
+                <option value="fade">{% translate "Fade In/Out" %}</option>
+                <option value="mirror">{% translate "Mirror Effect" %}</option>
+                <option value="rotate">{% translate "Rotate" %}</option>
+                <option value="speed">{% translate "Speed Adjustment" %}</option>
+              </optgroup>
+
+              <!-- Color Effects -->
+              <optgroup label="{% translate 'Color Effects' %}">
+                <option value="color">{% translate "Color Intensity" %}</option>
+                <option value="grayscale">{% translate "Black & White" %}</option>
+                <option value="sepia">{% translate "Sepia Tone" %}</option>
+                <option value="blur">{% translate "Blur Effect" %}</option>
+                <option value="vignette">{% translate "Vignette" %}</option>
+              </optgroup>
+
+              <!-- Transition Effects -->
+              <optgroup label="{% translate 'Transition Effects' %}">
+                <option value="time_mirror">{% translate "Time Mirror" %}</option>
+                <option value="loop">{% translate "Loop" %}</option>
+                <option value="reverse">{% translate "Reverse" %}</option>
+                <option value="flash">{% translate "Flash Transition" %}</option>
+                <option value="slide">{% translate "Slide" %}</option>
+              </optgroup>
+
+              <!-- Special Effects -->
+              <optgroup label="{% translate 'Special Effects' %}">
+                <option value="zoom">{% translate "Zoom In/Out" %}</option>
+                <option value="ripple">{% translate "Ripple" %}</option>
+                <option value="pixelate">{% translate "Pixelate" %}</option>
+              </optgroup>
+            </select>
+          </div>
+
+          <!-- Effect Parameters -->
+          <div id="effectParams" class="space-y-4 hidden">
+            <!-- Mirror Direction -->
+            <div id="mirrorParams" class="hidden">
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                {% translate "Mirror Direction" %}
+              </label>
+              <select name="mirror_direction" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="horizontal">{% translate "Horizontal" %}</option>
+                <option value="vertical">{% translate "Vertical" %}</option>
+              </select>
+            </div>
+
+            <!-- Rotation Angle -->
+            <div id="rotateParams" class="hidden">
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                {% translate "Rotation Angle" %}
+              </label>
+              <input type="number" name="rotate_angle" value="90" min="-360" max="360" 
+                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </div>
+
+            <!-- Speed Factor -->
+            <div id="speedParams" class="hidden">
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                {% translate "Speed Factor" %}
+              </label>
+              <input type="number" name="speed_factor" value="1.5" min="0.5" max="3" step="0.1"
+                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </div>
+
+            <!-- Color Intensity -->
+            <div id="colorParams" class="hidden">
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                {% translate "Color Intensity" %}
+              </label>
+              <input type="number" name="color_factor" value="1.5" min="0.5" max="2" step="0.1"
+                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </div>
+
+            <!-- Blur Radius -->
+            <div id="blurParams" class="hidden">
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                {% translate "Blur Radius" %}
+              </label>
+              <input type="number" name="blur_radius" value="5" min="1" max="20"
+                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </div>
+
+            <!-- Vignette Intensity -->
+            <div id="vignetteParams" class="hidden">
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                {% translate "Vignette Intensity" %}
+              </label>
+              <input type="range" name="vignette_intensity" value="0.5" min="0" max="1" step="0.1"
+                    class="block w-full">
+            </div>
+
+            <!-- Loop Count -->
+            <div id="loopParams" class="hidden">
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                {% translate "Number of Loops" %}
+              </label>
+              <input type="number" name="loop_count" value="2" min="2" max="10"
+                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </div>
+
+            <!-- Slide Direction -->
+            <div id="slideParams" class="hidden">
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                {% translate "Slide Direction" %}
+              </label>
+              <select name="slide_direction" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="left">{% translate "Left" %}</option>
+                <option value="right">{% translate "Right" %}</option>
+                <option value="up">{% translate "Up" %}</option>
+                <option value="down">{% translate "Down" %}</option>
+              </select>
+            </div>
+
+            <!-- Zoom Direction -->
+            <div id="zoomParams" class="hidden">
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                {% translate "Zoom Direction" %}
+              </label>
+              <select name="zoom_direction" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="in">{% translate "Zoom In" %}</option>
+                <option value="out">{% translate "Zoom Out" %}</option>
+              </select>
+            </div>
+
+            <!-- Ripple Intensity -->
+            <div id="rippleParams" class="hidden">
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                {% translate "Ripple Intensity" %}
+              </label>
+              <input type="range" name="ripple_intensity" value="0.5" min="0" max="1" step="0.1"
+                    class="block w-full">
+            </div>
+
+            <!-- Pixelate Blocks -->
+            <div id="pixelateParams" class="hidden">
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                {% translate "Pixelation Blocks" %}
+              </label>
+              <input type="number" name="pixelate_blocks" value="20" min="5" max="100"
+                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </div>
+          </div>
+
+          <!-- On-Screen Text Options -->
+          <div class="space-y-4 border-t border-gray-200 pt-4 mt-4">
+            <h3 class="text-md font-medium text-gray-900">{% translate "On-Screen Text" %}</h3>
+            
+            <div class="text-sm text-gray-500 mb-2">
+              {% translate "Text from your script scenes will be displayed on the video." %}
+            </div>
+            
+            <!-- Text Position -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                {% translate "Text Position" %}
+              </label>
+              <select id="text_position" name="text_position" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="bottom">{% translate "Bottom" %}</option>
+                <option value="center">{% translate "Center" %}</option>
+                <option value="top">{% translate "Top" %}</option>
+              </select>
+            </div>
+            
+            <!-- Text Size -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                {% translate "Font Size" %}
+              </label>
+              <input type="range" id="text_fontsize" name="text_fontsize" value="30" min="10" max="80" step="1" 
+                    class="block w-full">
+              <div class="flex justify-between text-xs text-gray-500">
+                <span>{% translate "Small" %}</span>
+                <span>{% translate "Large" %}</span>
+              </div>
+            </div>
+            
+            <!-- Text Color -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                {% translate "Text Color" %}
+              </label>
+              <select id="text_color" name="text_color" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="white">{% translate "White" %}</option>
+                <option value="black">{% translate "Black" %}</option>
+                <option value="yellow">{% translate "Yellow" %}</option>
+                <option value="red">{% translate "Red" %}</option>
+                <option value="blue">{% translate "Blue" %}</option>
+                <option value="green">{% translate "Green" %}</option>
+              </select>
+            </div>
+            
+            <!-- Text Background -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                {% translate "Text Background" %}
+              </label>
+              <select id="text_bg_color" name="text_bg_color" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="">{% translate "None (Transparent)" %}</option>
+                <option value="black">{% translate "Black" %}</option>
+                <option value="white">{% translate "White" %}</option>
+                <option value="gray">{% translate "Gray" %}</option>
+                <option value="blue">{% translate "Blue" %}</option>
+                <option value="red">{% translate "Red" %}</option>
+              </select>
+            </div>
+            
+            <!-- Text Opacity -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                {% translate "Text Opacity" %}
+              </label>
+              <input type="range" id="text_opacity" name="text_opacity" value="1.0" min="0.1" max="1.0" step="0.1" 
+                    class="block w-full">
+              <div class="flex justify-between text-xs text-gray-500">
+                <span>{% translate "Transparent" %}</span>
+                <span>{% translate "Solid" %}</span>
+              </div>
+            </div>
+            
+            <!-- Text Alignment -->
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-1">
+                {% translate "Text Alignment" %}
+              </label>
+              <select id="text_align" name="text_align" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <option value="center">{% translate "Center" %}</option>
+                <option value="left">{% translate "Left" %}</option>
+                <option value="right">{% translate "Right" %}</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="flex items-center">
+            <input id="add_watermark" name="add_watermark" type="checkbox" class="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+            <label for="add_watermark" class="ml-2 block text-sm text-gray-700">
+              {% translate "Add Watermark" %}
+            </label>
+          </div>
+
+          <div class="pt-2">
+            <button type="submit" id="generateBtn" class="w-full btn-primary">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M4 5a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V7a2 2 0 00-2-2h-1.586a1 1 0 01-.707-.293l-1.121-1.121A2 2 0 0011.172 3H8.828a2 2 0 00-1.414.586L6.293 4.707A1 1 0 015.586 5H4zm6 9a3 3 0 100-6 3 3 0 000 6z" clip-rule="evenodd" />
+              </svg>
+              {% translate "Generate Video" %}
+            </button>
+          </div>
+
+          <div class="text-center text-sm text-gray-500 pt-2">
+            {% translate "This will generate a video from" %} <span id="sceneCount">{{ scene_count }}</span> {% translate "scenes in your script." %}
+          </div>
+        </form>
+      </div>
+
+      <!-- Script information -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-4">{% translate "Script Details" %}</h3>
+        <div class="space-y-4">
+          <div>
+            <h4 class="text-sm font-medium text-gray-500">{% translate "Title" %}</h4>
+            <p>{{ script.title }}</p>
+          </div>
+          <div>
+            <h4 class="text-sm font-medium text-gray-500">{% translate "Topic" %}</h4>
+            <p>{{ script.topic }}</p>
+          </div>
+          {% if script.audience %}
+          <div>
+            <h4 class="text-sm font-medium text-gray-500">{% translate "Target Audience" %}</h4>
+            <p>{{ script.audience }}</p>
+          </div>
+          {% endif %}
+          <div>
+            <h4 class="text-sm font-medium text-gray-500">{% translate "Scenes" %}</h4>
+            <p>{{ scene_count }} {% translate "scenes" %}</p>
+          </div>
+          <div>
+            <h4 class="text-sm font-medium text-gray-500">{% translate "Images" %}</h4>
+            <p>{{ images.count }} {% translate "images" %}</p>
+          </div>
+          <div>
+            <h4 class="text-sm font-medium text-gray-500">{% translate "Audio Files" %}</h4>
+            <p>{{ audio_files.count }} {% translate "audio files" %}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Media preview -->
+    <div class="lg:col-span-2">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-xl font-bold text-gray-900">{% translate "Images" %}</h2>
+          <a href="{% url 'workspaces:image_editor' workspace.id script.id %}" class="text-sm text-blue-600 hover:text-blue-800">
+            {% translate "Generate More Images" %}
+          </a>
+        </div>
+
+        {% if images %}
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+            {% for image in images %}
+              <div class="media-card bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <img src="{{ image.file.url }}" alt="{{ image.name }}" class="media-thumbnail">
+                <div class="p-3">
+                  <h3 class="font-medium text-gray-900 truncate">{{ image.name }}</h3>
+                  <p class="text-xs text-gray-500">
+                    {{ image.created_at|date:"M d, Y H:i" }}
+                  </p>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="text-center py-12 bg-gray-50 rounded-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">{% translate "No images generated yet" %}</h3>
+            <p class="text-gray-500 mb-6">{% translate "Generate images for your script first." %}</p>
+            <a href="{% url 'workspaces:image_editor' workspace.id script.id %}" class="btn-primary">
+              {% translate "Generate Images" %}
+            </a>
+          </div>
+        {% endif %}
+      </div>
+
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-xl font-bold text-gray-900">{% translate "Voice-Overs" %}</h2>
+          <a href="{% url 'workspaces:voice_editor' workspace.id script.id %}" class="text-sm text-blue-600 hover:text-blue-800">
+            {% translate "Generate More Voice-Overs" %}
+          </a>
+        </div>
+
+        {% if audio_files %}
+          <div class="space-y-4">
+            {% for audio in audio_files %}
+              <div class="media-card bg-white rounded-lg border border-gray-200 overflow-hidden p-4">
+                <div class="flex justify-between items-start">
+                  <div>
+                    <h3 class="font-medium text-gray-900 mb-1">{{ audio.name }}</h3>
+                    <p class="text-sm text-gray-500 mb-2">
+                      {{ audio.created_at|date:"M d, Y H:i" }} •
+                      {% if audio.duration %}
+                        {{ audio.duration|floatformat:1 }}s
+                      {% endif %}
+                    </p>
+                  </div>
+                  <div class="flex items-center">
+                    <span class="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
+                      {{ audio.metadata.voice_name }}
+                    </span>
+                  </div>
+                </div>
+                <audio controls class="audio-player">
+                  <source src="{{ audio.file.url }}" type="audio/mpeg">
+                  {% translate "Your browser does not support the audio element." %}
+                </audio>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="text-center py-12 bg-gray-50 rounded-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+            </svg>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">{% translate "No voice-overs generated yet" %}</h3>
+            <p class="text-gray-500 mb-6">{% translate "Generate voice-overs for your script first." %}</p>
+            <a href="{% url 'workspaces:voice_editor' workspace.id script.id %}" class="btn-primary">
+              {% translate "Generate Voice-Overs" %}
+            </a>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay" class="fixed inset-0 flex items-center justify-center loading-overlay hidden">
+  <div class="bg-white p-8 rounded-lg shadow-lg text-center">
+    <div class="spinner mx-auto mb-4"></div>
+    <h3 class="text-lg font-medium text-gray-900 mb-2">{% translate "Generating Video" %}</h3>
+    <p class="text-gray-500" id="loadingMessage">{% translate "This may take a few minutes..." %}</p>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block modal %}
+<!-- Background Music Upload Modal -->
+<div id="uploadMusicModal" class="fixed inset-0 z-50 overflow-y-auto hidden" aria-labelledby="modal-title" role="dialog" aria-modal="true">
+  <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
+    <!-- Background overlay -->
+    <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity" aria-hidden="true"></div>
+
+    <!-- Modal panel -->
+    <div class="inline-block align-bottom bg-white rounded-lg text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full">
+      <div class="bg-white px-4 pt-5 pb-4 sm:p-6 sm:pb-4">
+        <div class="sm:flex sm:items-start">
+          <div class="mx-auto flex-shrink-0 flex items-center justify-center h-12 w-12 rounded-full bg-blue-100 sm:mx-0 sm:h-10 sm:w-10">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 18V5l12-2v13"/>
+              <circle cx="6" cy="18" r="3"/>
+              <circle cx="18" cy="16" r="3"/>
+            </svg>
+          </div>
+          <div class="mt-3 text-center sm:mt-0 sm:ml-4 sm:text-left">
+            <h3 class="text-lg leading-6 font-medium text-gray-900" id="modal-title">
+              {% translate "Upload Background Music" %}
+            </h3>
+            <div class="mt-2">
+              <p class="text-sm text-gray-500">
+                {% translate "Upload an audio file to use as background music for your video. Supported formats: MP3, WAV, AAC." %}
+              </p>
+            </div>
+          </div>
+        </div>
+        
+        <form id="uploadMusicForm" class="mt-5 space-y-4" enctype="multipart/form-data">
+          {% csrf_token %}
+          <input type="hidden" name="workspace_id" value="{{ workspace.id }}">
+          <input type="hidden" name="file_type" value="audio">
+          <input type="hidden" name="metadata" value='{"type": "background"}'>
+          
+          <div>
+            <label for="music_name" class="block text-sm font-medium text-gray-700 mb-1">
+              {% translate "Name" %}
+            </label>
+            <input type="text" name="name" id="music_name" required class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+          </div>
+          
+          <div>
+            <label for="music_file" class="block text-sm font-medium text-gray-700 mb-1">
+              {% translate "Audio File" %}
+            </label>
+            <input type="file" name="file" id="music_file" required accept="audio/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100">
+            <p class="mt-1 text-xs text-gray-500">
+              {% translate "Maximum file size: 50MB" %}
+            </p>
+          </div>
+        </form>
+      </div>
+      
+      <div class="bg-gray-50 px-4 py-3 sm:px-6 sm:flex sm:flex-row-reverse">
+        <button type="button" id="submitMusicUpload" class="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-blue-600 text-base font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 sm:ml-3 sm:w-auto sm:text-sm">
+          {% translate "Upload" %}
+        </button>
+        <button type="button" id="cancelMusicUpload" class="mt-3 w-full inline-flex justify-center rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-base font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 sm:mt-0 sm:ml-3 sm:w-auto sm:text-sm">
+          {% translate "Cancel" %}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock modal %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const videoGenerationForm = document.getElementById('videoGenerationForm');
+    const generateBtn = document.getElementById('generateBtn');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingMessage = document.getElementById('loadingMessage');
+    const effectSelect = document.getElementById('effect');
+    const effectParams = document.getElementById('effectParams');
+
+    // Effect parameter mapping
+    const effectParamMap = {
+      'mirror': 'mirrorParams',
+      'rotate': 'rotateParams',
+      'speed': 'speedParams',
+      'color': 'colorParams',
+      'blur': 'blurParams',
+      'vignette': 'vignetteParams',
+      'loop': 'loopParams',
+      'slide': 'slideParams',
+      'zoom': 'zoomParams',
+      'ripple': 'rippleParams',
+      'pixelate': 'pixelateParams'
+    };
+
+    // Show/hide effect parameters based on selected effect
+    effectSelect.addEventListener('change', function() {
+      const selectedEffect = this.value;
+      
+      // Hide all parameter sections first
+      effectParams.classList.add('hidden');
+      Object.values(effectParamMap).forEach(paramId => {
+        document.getElementById(paramId).classList.add('hidden');
+      });
+      
+      // Show relevant parameters if an effect is selected
+      if (selectedEffect && effectParamMap[selectedEffect]) {
+        effectParams.classList.remove('hidden');
+        document.getElementById(effectParamMap[selectedEffect]).classList.remove('hidden');
+      }
+    });
+
+    // Handle form submission
+    videoGenerationForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+
+      // Check if we have images and audio
+      {% if not images %}
+        alert("{% translate 'Please generate images for your script first.' %}");
+        return;
+      {% endif %}
+
+      {% if not audio_files %}
+        alert("{% translate 'Please generate voice-overs for your script first.' %}");
+        return;
+      {% endif %}
+
+      // Show loading overlay
+      loadingOverlay.classList.remove('hidden');
+      generateBtn.disabled = true;
+
+      // Get form data
+      const formData = new FormData(videoGenerationForm);
+      
+      // Add effect parameters based on selected effect
+      const selectedEffect = effectSelect.value;
+      if (selectedEffect) {
+        // Add the effect to formData
+        formData.set('effect', selectedEffect);
+        
+        // Add effect-specific parameters
+        switch (selectedEffect) {
+          case 'mirror':
+            formData.set('effect_params', JSON.stringify({
+              direction: formData.get('mirror_direction')
+            }));
+            break;
+          case 'rotate':
+            formData.set('effect_params', JSON.stringify({
+              angle: parseFloat(formData.get('rotate_angle'))
+            }));
+            break;
+          case 'speed':
+            formData.set('effect_params', JSON.stringify({
+              factor: parseFloat(formData.get('speed_factor'))
+            }));
+            break;
+          case 'color':
+            formData.set('effect_params', JSON.stringify({
+              factor: parseFloat(formData.get('color_factor'))
+            }));
+            break;
+          case 'blur':
+            formData.set('effect_params', JSON.stringify({
+              radius: parseInt(formData.get('blur_radius'))
+            }));
+            break;
+          case 'vignette':
+            formData.set('effect_params', JSON.stringify({
+              intensity: parseFloat(formData.get('vignette_intensity'))
+            }));
+            break;
+          case 'loop':
+            formData.set('effect_params', JSON.stringify({
+              n_loops: parseInt(formData.get('loop_count'))
+            }));
+            break;
+          case 'slide':
+            formData.set('effect_params', JSON.stringify({
+              direction: formData.get('slide_direction')
+            }));
+            break;
+          case 'zoom':
+            formData.set('effect_params', JSON.stringify({
+              direction: formData.get('zoom_direction')
+            }));
+            break;
+          case 'ripple':
+            formData.set('effect_params', JSON.stringify({
+              intensity: parseFloat(formData.get('ripple_intensity'))
+            }));
+            break;
+          case 'pixelate':
+            formData.set('effect_params', JSON.stringify({
+              blocks: parseInt(formData.get('pixelate_blocks'))
+            }));
+            break;
+        }
+      }
+      
+      // Add text parameters
+      const textParams = {
+        position: formData.get('text_position') || 'bottom',
+        fontsize: parseInt(formData.get('text_fontsize') || 30),
+        color: formData.get('text_color') || 'white',
+        bg_color: formData.get('text_bg_color') || null,
+        opacity: parseFloat(formData.get('text_opacity') || 1.0),
+        align: formData.get('text_align') || 'center'
+      };
+      
+      formData.set('text_params', JSON.stringify(textParams));
+
+      // Send request to generate video
+      fetch('{% url "workspaces:generate_video" workspace.id script.id %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          loadingMessage.textContent = "{% translate 'Video generated successfully! Redirecting to preview...' %}";
+          // Redirect to video preview page
+          setTimeout(() => {
+            window.location.href = data.redirect_url;
+          }, 1500);
+        } else {
+          loadingMessage.textContent = `{% translate 'Error:' %} ${data.error}`;
+          setTimeout(() => {
+            loadingOverlay.classList.add('hidden');
+            generateBtn.disabled = false;
+          }, 2000);
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        loadingMessage.textContent = "{% translate 'An error occurred. Please try again.' %}";
+        setTimeout(() => {
+          loadingOverlay.classList.add('hidden');
+          generateBtn.disabled = false;
+        }, 2000);
+      });
+    });
+
+    // Background music upload modal
+    const uploadMusicBtn = document.getElementById('uploadMusicBtn');
+    const uploadMusicModal = document.getElementById('uploadMusicModal');
+    const cancelMusicUpload = document.getElementById('cancelMusicUpload');
+    const submitMusicUpload = document.getElementById('submitMusicUpload');
+    const uploadMusicForm = document.getElementById('uploadMusicForm');
+    const backgroundMusicSelect = document.getElementById('background_music_id');
+    
+    // Open modal
+    uploadMusicBtn.addEventListener('click', function() {
+      uploadMusicModal.classList.remove('hidden');
+    });
+    
+    // Close modal
+    cancelMusicUpload.addEventListener('click', function() {
+      uploadMusicModal.classList.add('hidden');
+      uploadMusicForm.reset();
+    });
+    
+    // Submit form
+    submitMusicUpload.addEventListener('click', function() {
+      // Check if form is valid
+      if (!uploadMusicForm.checkValidity()) {
+        uploadMusicForm.reportValidity();
+        return;
+      }
+      
+      const formData = new FormData(uploadMusicForm);
+      
+      // Show loading state
+      submitMusicUpload.disabled = true;
+      submitMusicUpload.innerHTML = '{% translate "Uploading..." %}';
+      
+      // Send AJAX request
+      fetch('{% url "workspaces:upload_media" workspace.id %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest',
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          // Add new option to select
+          const option = document.createElement('option');
+          option.value = data.media.id;
+          option.text = data.media.name;
+          option.selected = true;
+          backgroundMusicSelect.appendChild(option);
+          
+          // Close modal
+          uploadMusicModal.classList.add('hidden');
+          uploadMusicForm.reset();
+          
+          // Show success message
+          alert('{% translate "Background music uploaded successfully!" %}');
+        } else {
+          alert(data.error || '{% translate "Error uploading background music." %}');
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('{% translate "Error uploading background music." %}');
+      })
+      .finally(() => {
+        // Reset loading state
+        submitMusicUpload.disabled = false;
+        submitMusicUpload.innerHTML = '{% translate "Upload" %}';
+      });
+    });
+  });
+</script>
+{% endblock extra_js %}

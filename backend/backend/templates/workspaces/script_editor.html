@@ -1,0 +1,1121 @@
+{% extends "base.html" %}
+{% load static i18n %}
+
+{% block title %}{% translate "Script Generator" %} | {{ workspace.name }}{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/codemirror.css' %}">
+<style>
+  .CodeMirror {
+    height: auto;
+    min-height: 600px;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    font-family: 'Courier New', monospace;
+    font-size: 14px;
+    line-height: 1.6;
+    background-color: #f8fafc;
+    padding: 1rem;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
+  }
+  .CodeMirror-focused {
+    border-color: #3b82f6;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  }
+  .cm-header {
+    font-weight: bold;
+    color: #2563eb;
+  }
+  .cm-comment {
+    color: #64748b;
+    font-style: italic;
+  }
+  .cm-strong {
+    font-weight: bold;
+    color: #111827;
+  }
+  .cm-em {
+    font-style: italic;
+    color: #4b5563;
+  }
+  .CodeMirror-linenumber {
+    color: #94a3b8;
+    font-size: 12px;
+  }
+  .CodeMirror-gutters {
+    border-right: 1px solid #e5e7eb;
+    background-color: #f1f5f9;
+    border-top-left-radius: 0.5rem;
+    border-bottom-left-radius: 0.5rem;
+  }
+  .CodeMirror-activeline-background {
+    background: rgba(59, 130, 246, 0.05);
+  }
+  .CodeMirror-matchingbracket {
+    color: #059669 !important;
+    font-weight: bold;
+  }
+  .scene-card {
+    transition: all 0.2s ease-in-out;
+  }
+  .scene-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+  .script-toolbar {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    padding: 0.75rem;
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    flex-wrap: wrap;
+  }
+  .script-toolbar button {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    border-radius: 0.375rem;
+    background-color: white;
+    border: 1px solid #e5e7eb;
+    color: #374151;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 500;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  }
+  .script-toolbar button:hover {
+    background-color: #f8fafc;
+    border-color: #3b82f6;
+    color: #3b82f6;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  }
+  .script-toolbar button svg {
+    width: 1rem;
+    height: 1rem;
+  }
+  .script-format-guide {
+    margin-top: 1rem;
+    padding: 1.5rem;
+    background-color: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 0.5rem;
+    font-size: 0.875rem;
+    color: #64748b;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  }
+  .script-format-guide h4 {
+    font-weight: 600;
+    margin-bottom: 1rem;
+    color: #334155;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+  }
+  .script-format-guide ul {
+    padding-left: 0.5rem;
+    margin-bottom: 1rem;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+    gap: 0.75rem;
+  }
+  .script-format-guide li {
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.5rem;
+    border-radius: 0.375rem;
+    background-color: white;
+    border: 1px solid #e5e7eb;
+    transition: all 0.2s;
+  }
+  .script-format-guide li:hover {
+    border-color: #3b82f6;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    transform: translateY(-1px);
+  }
+  .script-format-guide li strong {
+    color: #334155;
+    font-weight: 600;
+  }
+  .script-format-guide p {
+    margin-top: 0.75rem;
+    font-style: italic;
+  }
+  .form-card {
+    background-color: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    height: fit-content;
+    position: sticky;
+    top: 2rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  }
+  .form-card .form-group {
+    margin-bottom: 1.25rem;
+  }
+  .form-card label {
+    display: block;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #374151;
+    margin-bottom: 0.5rem;
+  }
+  .form-card input,
+  .form-card select,
+  .form-card textarea {
+    width: 100%;
+    padding: 0.625rem;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.375rem;
+    font-size: 0.875rem;
+    transition: all 0.2s;
+  }
+  .form-card input:focus,
+  .form-card select:focus,
+  .form-card textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    ring: 2px solid #bfdbfe;
+  }
+  .editor-container {
+    background-color: white;
+    border: 1px solid #e5e7eb;
+    border-radius: 0.5rem;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  }
+  .editor-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid #e5e7eb;
+  }
+  .editor-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #111827;
+  }
+  .word-count {
+    font-size: 0.875rem;
+    color: #6b7280;
+    padding: 0.25rem 0.75rem;
+    background-color: #f3f4f6;
+    border-radius: 1rem;
+    font-weight: 500;
+  }
+</style>
+{% endblock extra_css %}
+
+{% block content %}
+<div class="container py-8">
+  <!-- Header -->
+  <div class="flex justify-between items-start mb-8">
+    <div>
+      <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
+        <a href="{% url 'workspaces:list' %}" class="hover:text-blue-600 transition-colors">
+          {% translate "Workspaces" %}
+        </a>
+        <span>/</span>
+        <a href="{% url 'workspaces:detail' workspace.id %}" class="hover:text-blue-600 transition-colors">
+          {{ workspace.name }}
+        </a>
+        <span>/</span>
+        <span class="text-gray-700 font-medium">{% translate "Script Generator" %}</span>
+      </div>
+      <h1 class="text-3xl font-bold text-gray-900 mb-2">{% translate "AI Script Generator" %}</h1>
+      <p class="text-gray-600 max-w-2xl leading-relaxed">
+        {% translate "Create compelling video scripts using AI. Customize the tone, style, and content to match your brand and audience." %}
+      </p>
+    </div>
+    <div class="hidden sm:block">
+      <div class="bg-blue-50 border border-blue-100 rounded-lg p-4 max-w-xs">
+        <div class="flex items-start gap-3">
+          <div class="text-blue-500 mt-0.5">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"/>
+            </svg>
+          </div>
+          <div>
+            <h3 class="text-sm font-medium text-blue-800 mb-1">{% translate "Quick Tip" %}</h3>
+            <p class="text-xs text-blue-700">
+              {% translate "Fill in the form on the right to generate a professional script. Use the toolbar buttons to format your script as needed." %}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Loading overlay -->
+  <div id="loading-overlay" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50 hidden">
+    <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+      <div class="inline-block animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-600 mb-4"></div>
+      <p class="text-gray-800 font-medium" id="loading-message">{% translate "Generating script..." %}</p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <!-- Left column: Script Editor -->
+    <div class="lg:col-span-8">
+      <div class="editor-container">
+        <div class="editor-header">
+          <h2 class="editor-title">{% translate "Script Editor" %}</h2>
+          <div class="word-count">
+            <span id="word-count">0 {% translate "words" %}</span>
+          </div>
+        </div>
+        
+        <div class="script-toolbar" id="script-toolbar">
+          <button data-format="scene" class="hover:text-blue-600">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+              <path d="M5.25 12a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM5.25 8.5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75zM5.25 5a.75.75 0 01.75-.75h7.5a.75.75 0 010 1.5h-7.5a.75.75 0 01-.75-.75z" />
+            </svg>
+            {% translate "New Scene" %}
+          </button>
+          <button data-format="time" class="hover:text-blue-600">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clip-rule="evenodd" />
+            </svg>
+            {% translate "Time Range" %}
+          </button>
+          <button data-format="visual" class="hover:text-blue-600">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+              <path d="M10 12.5a2.5 2.5 0 100-5 2.5 2.5 0 000 5z"/>
+              <path fill-rule="evenodd" d="M.664 10.59a1.651 1.651 0 010-1.186A10.004 10.004 0 0110 3c4.257 0 7.893 2.66 9.336 6.41.147.381.146.804 0 1.186A10.004 10.004 0 0110 17c-4.257 0-7.893-2.66-9.336-6.41zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
+            </svg>
+            {% translate "Visual" %}
+          </button>
+          <button data-format="narrator" class="hover:text-blue-600">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+              <path d="M7 4a3 3 0 016 0v6a3 3 0 11-6 0V4z"/>
+              <path d="M5.5 9.643a.75.75 0 00-1.5 0V10c0 3.06 2.29 5.585 5.25 5.954V17.5h-1.5a.75.75 0 000 1.5h4.5a.75.75 0 000-1.5h-1.5v-1.546A6.001 6.001 0 0016 10v-.357a.75.75 0 00-1.5 0V10a4.5 4.5 0 01-9 0v-.357z"/>
+            </svg>
+            {% translate "Narrator" %}
+          </button>
+          <button data-format="audio" class="hover:text-blue-600">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+              <path d="M10 3.75a.75.75 0 00-1.264-.546L4.703 7H3.167a.75.75 0 00-.7.48A6.985 6.985 0 002 10c0 .887.165 1.737.468 2.52.111.29.39.48.7.48h1.535l4.033 3.796A.75.75 0 0010 16.25V3.75zM15.95 5.05a.75.75 0 00-1.06 1.061 5.5 5.5 0 010 7.778.75.75 0 001.06 1.06 7 7 0 000-9.899z" />
+              <path d="M13.829 7.172a.75.75 0 00-1.061 1.06 2.5 2.5 0 010 3.536.75.75 0 001.06 1.06 4 4 0 000-5.656z" />
+            </svg>
+            {% translate "Audio" %}
+          </button>
+          <button data-format="text" class="hover:text-blue-600">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-8-5a.75.75 0 01.75.75v4.5a.75.75 0 01-1.5 0v-4.5A.75.75 0 0110 5zm0 10a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd" />
+            </svg>
+            {% translate "On-Screen Text" %}
+          </button>
+          <button data-format="transition" class="hover:text-blue-600">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+              <path fill-rule="evenodd" d="M2 4.25A2.25 2.25 0 014.25 2h11.5A2.25 2.25 0 0118 4.25v8.5A2.25 2.25 0 0115.75 15h-3.105a3.501 3.501 0 001.1 1.677A.75.75 0 0113.26 18H6.74a.75.75 0 01-.484-1.323A3.501 3.501 0 007.355 15H4.25A2.25 2.25 0 012 12.75v-8.5z" clip-rule="evenodd"/>
+            </svg>
+            {% translate "Transition" %}
+          </button>
+          <button data-format="effects" class="hover:text-blue-600">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+              <path d="M15.98 1.804a1 1 0 00-1.96 0l-.24 1.192a1 1 0 01-.784.785l-1.192.238a1 1 0 000 1.962l1.192.238a1 1 0 01.785.785l.238 1.192a1 1 0 001.962 0l.238-1.192a1 1 0 01.785-.785l1.192-.238a1 1 0 000-1.962l-1.192-.238a1 1 0 01-.785-.785l-.238-1.192zM6.949 5.684a1 1 0 00-1.898 0l-.683 2.051a1 1 0 01-.633.633l-2.051.683a1 1 0 000 1.898l2.051.684a1 1 0 01.633.632l.683 2.051a1 1 0 001.898 0l.683-2.051a1 1 0 01.633-.633l2.051-.683a1 1 0 000-1.898l-2.051-.683a1 1 0 01-.633-.633L6.95 5.684z" />
+            </svg>
+            {% translate "Visual Effects" %}
+          </button>
+          <button data-format="notes" class="hover:text-blue-600">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4">
+              <path fill-rule="evenodd" d="M5 2a1 1 0 011 1v1h1a1 1 0 010 2H6v1a1 1 0 01-2 0V6H3a1 1 0 010-2h1V3a1 1 0 011-1zm0 10a1 1 0 011 1v1h1a1 1 0 110 2H6v1a1 1 0 11-2 0v-1H3a1 1 0 110-2h1v-1a1 1 0 011-1zM12 2a1 1 0 01.967.744L14.146 7.2 17.5 9.134a1 1 0 010 1.732l-3.354 1.935-1.18 4.455a1 1 0 01-1.933 0L9.854 12.8 6.5 10.866a1 1 0 010-1.732l3.354-1.935 1.18-4.455A1 1 0 0112 2z" clip-rule="evenodd" />
+            </svg>
+            {% translate "Notes" %}
+          </button>
+        </div>
+        
+        <div class="mb-4 rounded-md overflow-hidden border border-gray-200">
+          <textarea 
+            id="script-content" 
+            name="script" 
+            class="w-full" 
+            data-script-id="{{ script.id|default:'' }}"
+          >{{ script.content|default:"" }}</textarea>
+        </div>
+        
+        <div class="script-format-guide">
+          <h4>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-5 h-5 text-blue-500">
+              <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a.75.75 0 000 1.5h.253a.25.25 0 01.244.304l-.459 2.066A1.75 1.75 0 0010.747 15H11a.75.75 0 000-1.5h-.253a.25.25 0 01-.244-.304l.459-2.066A1.75 1.75 0 009.253 9H9z" clip-rule="evenodd"/>
+            </svg>
+            {% translate "Script Format Guide" %}
+          </h4>
+          <ul>
+            <li>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0">
+                <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+              </svg>
+              <div>
+                <strong>time_from/time_to:</strong> - Specify the time range for the scene (e.g., "00:00:00" to "00:00:05")
+              </div>
+            </li>
+            <li>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0">
+                <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+              </svg>
+              <div>
+                <strong>visual:</strong> - Describe what viewers will see on screen
+              </div>
+            </li>
+            <li>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0">
+                <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+              </svg>
+              <div>
+                <strong>narrator:</strong> - Voice over narration text
+              </div>
+            </li>
+            <li>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0">
+                <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+              </svg>
+              <div>
+                <strong>audio:</strong> - Background music, sound effects, etc.
+              </div>
+            </li>
+            <li>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0">
+                <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+              </svg>
+              <div>
+                <strong>on_screen_text:</strong> - Text displayed on screen
+              </div>
+            </li>
+            <li>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0">
+                <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+              </svg>
+              <div>
+                <strong>transition:</strong> - Scene transitions (fade, cut, dissolve, etc.)
+              </div>
+            </li>
+            <li>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0">
+                <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+              </svg>
+              <div>
+                <strong>visual_effects:</strong> - Special visual effects to apply
+              </div>
+            </li>
+            <li>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="w-4 h-4 text-blue-500 mt-0.5 flex-shrink-0">
+                <path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clip-rule="evenodd" />
+              </svg>
+              <div>
+                <strong>notes:</strong> - Additional production notes or instructions
+              </div>
+            </li>
+          </ul>
+          <p>{% translate "Use the toolbar buttons above to quickly insert these elements into your script." %}</p>
+        </div>
+        
+        <div class="flex justify-between mt-4">
+          <div class="text-xs text-gray-500">
+            <span id="token-usage">
+              {% if script.metadata.tokens %}
+              {% translate "Token usage" %}: {{ script.metadata.tokens.total }}
+              {% endif %}
+            </span>
+          </div>
+          <div class="text-xs text-gray-500">
+            {% translate "Last updated" %}: 
+            <span id="last-updated">
+              {% if script.updated_at %}
+              {{ script.updated_at|date:"M d, Y H:i" }}
+              {% else %}
+              {% translate "Never" %}
+              {% endif %}
+            </span>
+          </div>
+        </div>
+        
+        <div class="flex justify-end mt-4 {% if not script %}hidden{% endif %}" id="scriptActions">
+          <div class="flex gap-2">
+            <button id="copy-script-btn" class="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+                <path d="M15 2H9a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V3a1 1 0 0 0-1-1Z"/>
+              </svg>
+              {% translate "Copy" %}
+            </button>
+            <button id="format-script-btn" class="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400 shadow-sm transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M21 10H3M21 6H3M21 14H3M21 18H3"/>
+              </svg>
+              {% translate "Format" %}
+            </button>
+            <button id="save-script-btn" class="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                <polyline points="17 21 17 13 7 13 7 21"/>
+                <polyline points="7 3 7 8 15 8"/>
+              </svg>
+              {% translate "Save" %}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Right column: Script Generation Form -->
+    <div class="lg:col-span-4">
+      <div class="form-card">
+        <h2 class="text-lg font-bold text-gray-900 mb-4">{% translate "Generate New Script" %}</h2>
+        
+        <form id="scriptForm" method="post" action="{% url 'workspaces:generate_script' workspace.id %}">
+          {% csrf_token %}
+          
+          <!-- Title Field -->
+          <div class="form-group">
+            <label for="title" class="block text-sm font-medium text-gray-700 mb-1">
+              {% translate "Script Title" %}
+            </label>
+            <div class="relative rounded-md shadow-sm">
+              <input 
+                type="text" 
+                name="title" 
+                id="title" 
+                class="block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm py-2 px-3"
+                placeholder="{% translate 'e.g., Product Launch Video' %}"
+              >
+            </div>
+          </div>
+          
+          <!-- Channel Field -->
+          <div class="form-group">
+            <label for="channel" class="block text-sm font-medium text-gray-700 mb-1">
+              {% translate "Channel" %}
+            </label>
+            <div class="relative rounded-md shadow-sm">
+
+              <select 
+                name="channel" 
+                id="channel"
+                class="block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm py-2 px-3 pr-8 appearance-none"
+                {% comment %} onchange="updatePromptTemplates()" {% endcomment %}
+              >
+                {% if channels %}
+                  {% for channel in channels %}
+                    <option value="{{ channel.id }}">{{ channel.name }}</option>
+                  {% endfor %}
+                {% endif %}
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+              </div>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">
+              {% translate "Select a channel for script generation. Channels are provided by the channel associated with this script." %}
+            </p>
+          </div>
+          
+          <!-- Prompt Template Field -->
+          {% comment %} <div class="form-group">
+            <label for="prompt_template" class="block text-sm font-medium text-gray-700 mb-1">
+              {% translate "Prompt Template" %}
+            </label>
+            <div class="relative rounded-md shadow-sm">
+              <select 
+                name="prompt_template" 
+                id="prompt_template"
+                class="block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm py-2 px-3 pr-8 appearance-none"
+              >
+                <option value="">{% translate "Default Template" %}</option>
+                <!-- Prompt templates will be populated by JavaScript -->
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+              </div>
+            </div>
+            <p class="mt-1 text-xs text-gray-500">
+              {% translate "Select a prompt template for script generation. Templates are specific to the selected channel." %}
+            </p>
+          </div> {% endcomment %}
+          
+          <!-- Topic Field -->
+          <div class="form-group">
+            <label for="topic" class="block text-sm font-medium text-gray-700 mb-1">
+              {% translate "Topic" %}*
+            </label>
+            <div class="relative rounded-md shadow-sm">
+              <input 
+                type="text" 
+                name="topic" 
+                id="topic" 
+                required
+                class="block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm py-2 px-3"
+                placeholder="{% translate 'e.g., Sustainable Fashion, New Product Features' %}"
+              >
+            </div>
+          </div>
+          
+          <!-- Target Audience Field -->
+          <div class="form-group">
+            <label for="audience" class="block text-sm font-medium text-gray-700 mb-1">
+              {% translate "Target Audience" %}
+            </label>
+            <div class="relative rounded-md shadow-sm">
+              <input 
+                type="text" 
+                name="audience" 
+                id="audience" 
+                class="block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm py-2 px-3"
+                placeholder="{% translate 'e.g., Business Professionals, Teenagers, Tech Enthusiasts' %}"
+                value="general"
+              >
+            </div>
+          </div>
+          
+          <!-- Tone Field -->
+          <div class="form-group">
+            <label for="tone" class="block text-sm font-medium text-gray-700 mb-1">
+              {% translate "Tone" %}
+            </label>
+            <div class="relative rounded-md shadow-sm">
+              <select 
+                name="tone" 
+                id="tone"
+                class="block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm py-2 px-3 pr-8 appearance-none"
+              >
+                <option value="professional" selected>{% translate "Professional" %}</option>
+                <option value="conversational">{% translate "Conversational" %}</option>
+                <option value="enthusiastic">{% translate "Enthusiastic" %}</option>
+                <option value="humorous">{% translate "Humorous" %}</option>
+                <option value="serious">{% translate "Serious" %}</option>
+                <option value="educational">{% translate "Educational" %}</option>
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Duration Field -->
+          <div class="form-group">
+            <label for="duration" class="block text-sm font-medium text-gray-700 mb-1">
+              {% translate "Approximate Duration" %}
+            </label>
+            <div class="relative rounded-md shadow-sm">
+              <select 
+                name="duration" 
+                id="duration"
+                class="block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm py-2 px-3 pr-8 appearance-none"
+              >
+                <option value="30">{% translate "30 seconds" %}</option>
+                <option value="60" selected>{% translate "1 minute" %}</option>
+                <option value="120">{% translate "2 minutes" %}</option>
+                <option value="180">{% translate "3 minutes" %}</option>
+                <option value="300">{% translate "5 minutes" %}</option>
+              </select>
+              <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-gray-700">
+                <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Additional Instructions Field -->
+          <div class="form-group">
+            <label for="instructions" class="block text-sm font-medium text-gray-700 mb-1">
+              {% translate "Additional Instructions" %}
+            </label>
+            <div class="relative rounded-md shadow-sm">
+              <textarea 
+                name="instructions" 
+                id="instructions" 
+                rows="4" 
+                class="block w-full rounded-md border-gray-300 focus:border-blue-500 focus:ring-blue-500 sm:text-sm py-2 px-3 resize-none"
+                placeholder="{% translate 'Include specific points, keywords, or any other guidance for the AI...' %}"
+              ></textarea>
+            </div>
+          </div>
+          
+          <!-- Generate Button -->
+          <div class="pt-3">
+            <button 
+              type="submit" 
+              id="generate-script-btn"
+              class="w-full inline-flex items-center justify-center rounded-lg px-4 py-2.5 text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+                <path d="m15.5 9-3.5 3-2-2"/>
+                <path d="M8 14h7v2H8z"/>
+              </svg>
+              {% translate "Generate Script" %}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    
+    // Initialize CodeMirror for the script textarea
+    const scriptTextarea = document.getElementById('script-content');
+    let editor = null;
+    
+    if (scriptTextarea) {
+      editor = CodeMirror.fromTextArea(scriptTextarea, {
+        mode: 'markdown',
+        lineWrapping: true,
+        lineNumbers: true,
+        theme: 'default',
+        extraKeys: {"Enter": "newlineAndIndentContinueMarkdownList"},
+        indentUnit: 4,
+        tabSize: 4,
+        autoCloseBrackets: true,
+        matchBrackets: true,
+        styleActiveLine: true,
+        viewportMargin: Infinity,
+        scrollbarStyle: 'overlay'
+      });
+      
+      // Set initial content if empty
+      if (!editor.getValue().trim()) {
+        const defaultTemplate = `[
+  {
+    "time_from": "00:00:00",
+    "time_to": "00:00:05",
+    "visual": "",
+    "narrator": " ",
+    "audio": "  ",
+    "on_screen_text": "",
+    "transition": "",
+    "visual_effects": "",
+    "notes": ""
+  }
+]`;
+        editor.setValue(defaultTemplate);
+      }
+      
+      // Word count functionality
+      editor.on('change', function() {
+        const text = editor.getValue();
+        const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+        document.getElementById('word-count').textContent = `${wordCount} {% translate "words" %}`;
+      });
+      
+      // Trigger initial word count
+      const text = editor.getValue();
+      const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+      document.getElementById('word-count').textContent = `${wordCount} {% translate "words" %}`;
+    }
+    
+    // Script formatting toolbar functionality
+    const toolbar = document.getElementById('script-toolbar');
+    if (toolbar && editor) {
+      toolbar.addEventListener('click', function(e) {
+        const button = e.target.closest('button');
+        if (button) {
+          const format = button.getAttribute('data-format');
+          let template = '';
+          
+          // Get cursor position
+          const doc = editor.getDoc();
+          const cursor = doc.getCursor();
+          
+          // Try to determine if we're inside a JSON object
+          const currentLine = doc.getLine(cursor.line);
+          const isInsideObject = currentLine.includes('{') || currentLine.includes('}');
+          
+          // Check if we need to create a new scene object
+          const editorValue = editor.getValue().trim();
+          const isEmptyOrInvalid = !editorValue || editorValue === '[]' || editorValue === '[' || editorValue === ']';
+          
+          // If we're starting fresh or need a new scene
+          if (format === 'scene' || isEmptyOrInvalid) {
+            template = `{
+  "time_from": "00:00:00",
+  "time_to": "00:00:05",
+  "visual": "Description of what viewers will see",
+  "narrator": "Narration text goes here",
+  "audio": "Description of background music or sound effects",
+  "on_screen_text": "Text displayed on screen",
+  "transition": "Type of transition",
+  "visual_effects": "Description of visual effects",
+  "notes": "Additional production notes"
+}`;
+            
+            // If the editor is empty, wrap in array brackets
+            if (isEmptyOrInvalid) {
+              template = `[\n  ${template}\n]`;
+            } else if (editorValue.endsWith(']')) {
+              // If we're adding to an existing array, add a comma
+              const position = editor.posFromIndex(editorValue.lastIndexOf(']'));
+              doc.replaceRange(',\n  ', {line: position.line, ch: position.ch - 1});
+              doc.replaceRange(template, {line: position.line + 1, ch: 2});
+              return;
+            }
+            
+            editor.setValue(template);
+            return;
+          }
+          
+          // For other formats, insert the appropriate field
+          switch(format) {
+            case 'time':
+              template = `"time_from": "00:00:00",\n  "time_to": "00:00:05"`;
+              break;
+            case 'visual':
+              template = `"visual": "Description of what viewers will see"`;
+              break;
+            case 'narrator':
+              template = `"narrator": "Narration text goes here"`;
+              break;
+            case 'audio':
+              template = `"audio": "Description of background music or sound effects"`;
+              break;
+            case 'text':
+              template = `"on_screen_text": "Text displayed on screen"`;
+              break;
+            case 'transition':
+              template = `"transition": "Type of transition (fade, cut, dissolve, etc.)"`;
+              break;
+            case 'effects':
+              template = `"visual_effects": "Description of visual effects"`;
+              break;
+            case 'notes':
+              template = `"notes": "Additional production notes"`;
+              break;
+          }
+          
+          // Insert at cursor position with proper formatting
+          if (isInsideObject) {
+            // If we're inside an object, add a comma if needed
+            const lineText = doc.getLine(cursor.line);
+            if (!lineText.trim().endsWith(',') && !lineText.trim().endsWith('{')) {
+              template = ',\n  ' + template;
+            } else {
+              template = '\n  ' + template;
+            }
+          }
+          
+          doc.replaceRange(template, cursor);
+          editor.focus();
+        }
+      });
+    }
+    
+    // Format script button
+    const formatBtn = document.getElementById('format-script-btn');
+    if (formatBtn && editor) {
+      formatBtn.addEventListener('click', function() {
+        const scriptText = editor.getValue();
+        if (!scriptText.trim()) {
+          alert('No script to format!');
+          return;
+        }
+        
+        // Simple formatting logic
+        let formattedText = scriptText
+          // Ensure scene headings are properly formatted
+          .replace(/\[([^\]]+)\]/g, '\n[$1]\n')
+          // Format visual cues
+          .replace(/\(VISUAL:([^)]+)\)/g, '\n(VISUAL:$1)\n')
+          // Format narrator lines
+          .replace(/NARRATOR \(VO\):/g, '\nNARRATOR (VO):\n')
+          // Format transitions
+          .replace(/\(TRANSITION TO:([^)]+)\)/g, '\n(TRANSITION TO:$1)\n')
+          // Format character dialog
+          .replace(/([A-Z][A-Z\s]+):/g, '\n$1:\n')
+          // Format action descriptions
+          .replace(/\(ACTION:([^)]+)\)/g, '\n(ACTION:$1)\n')
+          // Remove excessive newlines
+          .replace(/\n{3,}/g, '\n\n');
+        
+        editor.setValue(formattedText.trim());
+        editor.refresh();
+      });
+    }
+    
+    // Handle form submission
+    const form = document.getElementById('scriptForm');
+    const generateBtn = document.getElementById('generate-script-btn');
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const scriptActions = document.getElementById('scriptActions');
+    
+    if (form) {
+      form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        
+        // Show loading overlay
+        if (loadingOverlay) {
+          loadingOverlay.classList.remove('hidden');
+        }
+        
+        // Disable generate button
+        if (generateBtn) {
+          generateBtn.disabled = true;
+          generateBtn.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+        
+        // Get form data
+        const formData = new FormData(form);
+        
+        // Send AJAX request
+        fetch(form.action, {
+          method: 'POST',
+          body: formData,
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+            'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+          }
+        })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          return response.json();
+        })
+        .then(data => {
+          // Hide loading overlay
+          if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+          }
+          
+          // Re-enable generate button
+          if (generateBtn) {
+            generateBtn.disabled = false;
+            generateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+          }
+          
+          if (data.success) {
+            // Set the script content in the editor
+            if (editor) {
+              // Format the received script for better readability
+              let formattedScript = data.script;
+              
+             
+              
+              editor.setValue(formattedScript);
+              editor.refresh();
+              
+              // Update word count
+              const text = editor.getValue();
+              const wordCount = text.trim() ? text.trim().split(/\s+/).length : 0;
+              document.getElementById('word-count').textContent = `${wordCount} {% translate "words" %}`;
+            }
+            
+            // Update token usage if available
+            if (data.metadata && data.metadata.token_usage) {
+              const tokenUsageElement = document.getElementById('token-usage');
+              if (tokenUsageElement) {
+                tokenUsageElement.textContent = `{% translate "Token usage" %}: ${data.metadata.token_usage}`;
+              }
+            }
+            
+            // Update last updated time
+            const lastUpdatedElement = document.getElementById('last-updated');
+            if (lastUpdatedElement) {
+              const now = new Date();
+              lastUpdatedElement.textContent = now.toLocaleString();
+            }
+            
+            // Show script actions
+            if (scriptActions) {
+              scriptActions.classList.remove('hidden');
+            }
+          } else {
+            // Show error message
+            alert('Error generating script: ' + (data.error || 'Unknown error'));
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          
+          // Hide loading overlay
+          if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+          }
+          
+          // Re-enable generate button
+          if (generateBtn) {
+            generateBtn.disabled = false;
+            generateBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+          }
+          
+          // Show error message
+          alert('Error generating script. Please try again.');
+        });
+      });
+    }
+    
+    // Handle copy button
+    const copyBtn = document.getElementById('copy-script-btn');
+    if (copyBtn && editor) {
+      copyBtn.addEventListener('click', function() {
+        const scriptText = editor.getValue();
+        if (!scriptText.trim()) {
+          alert('No script to copy!');
+          return;
+        }
+        
+        navigator.clipboard.writeText(scriptText)
+          .then(() => {
+            // Show success message
+            const originalText = copyBtn.innerHTML;
+            copyBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 6L9 17l-5-5"/>
+            </svg>{% translate "Copied!" %}`;
+            
+            setTimeout(() => {
+              copyBtn.innerHTML = originalText;
+            }, 2000);
+          })
+          .catch(err => {
+            console.error('Failed to copy script: ', err);
+            alert('Failed to copy script. Please try again.');
+          });
+      });
+    }
+    
+    // Handle save button
+    const saveBtn = document.getElementById('save-script-btn');
+    if (saveBtn && editor) {
+      saveBtn.addEventListener('click', function() {
+        const scriptText = editor.getValue();
+        if (!scriptText.trim()) {
+          alert('No script to save!');
+          return;
+        }
+        
+        // Show loading overlay for save operation
+        if (loadingOverlay) {
+          loadingOverlay.classList.remove('hidden');
+          document.getElementById('loading-message').textContent = "{% translate 'Saving script...' %}";
+        }
+        
+        // Get script ID if available
+        const scriptId = scriptTextarea.getAttribute('data-script-id');
+        
+        // Prepare data for saving
+        const saveData = new FormData();
+        saveData.append('content', scriptText);
+        saveData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+        
+        // Send save request (replace with actual endpoint)
+        const saveUrl = scriptId 
+          ? `/workspaces/{{ workspace.id }}/scripts/${scriptId}/update/`
+          : `/workspaces/{{ workspace.id }}/scripts/create/`;
+        
+        fetch(saveUrl, {
+          method: 'POST',
+          body: saveData,
+          headers: {
+            'X-Requested-With': 'XMLHttpRequest',
+          }
+        })
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Network response was not ok');
+          }
+          return response.json();
+        })
+        .then(data => {
+          // Hide loading overlay
+          if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+          }
+          
+          if (data.success) {
+            // Update script ID if new script was created
+            if (data.script_id) {
+              scriptTextarea.setAttribute('data-script-id', data.script_id);
+            }
+            
+            // Update last updated time
+            const lastUpdatedElement = document.getElementById('last-updated');
+            if (lastUpdatedElement) {
+              const now = new Date();
+              lastUpdatedElement.textContent = now.toLocaleString();
+            }
+            
+            // Show success message
+            const originalText = saveBtn.innerHTML;
+            saveBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M20 6L9 17l-5-5"/>
+            </svg>{% translate "Saved!" %}`;
+            
+            setTimeout(() => {
+              saveBtn.innerHTML = originalText;
+            }, 2000);
+          } else {
+            // Show error message
+            alert('Error saving script: ' + (data.error || 'Unknown error'));
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          
+          // Hide loading overlay
+          if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+          }
+          
+          // Show error message
+          alert('Error saving script. Please try again.');
+        });
+      });
+    }
+  });
+
+  // Function to update prompt templates based on selected channel
+  function updatePromptTemplates() {
+    const channelSelect = document.getElementById('channel');
+    const promptTemplateSelect = document.getElementById('prompt_template');
+    
+    // Clear existing options except the default one
+    while (promptTemplateSelect.options.length > 1) {
+      promptTemplateSelect.remove(1);
+    }
+    
+    if (!channelSelect.value) {
+      return;
+    }
+    
+    // Get channel templates from the context data
+    const channelTemplates = {% if channel_templates_json %}{{ channel_templates_json|safe }}{% else %}{} {% endif %};
+    const selectedChannelId = channelSelect.value;
+    
+    if (channelTemplates[selectedChannelId] && Object.keys(channelTemplates[selectedChannelId]).length > 0) {
+      // Add options for each prompt template
+      for (const [key, value] of Object.entries(channelTemplates[selectedChannelId])) {
+        const option = document.createElement('option');
+        option.value = key;
+        option.textContent = key;
+        promptTemplateSelect.appendChild(option);
+      }
+    }
+  }
+
+  // Initialize prompt templates on page load
+  document.addEventListener('DOMContentLoaded', function() {
+    updatePromptTemplates();
+  });
+</script>
+
+{% endblock content %}

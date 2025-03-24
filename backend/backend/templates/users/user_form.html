@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+image.png{% load i18n %}
+{% load crispy_forms_tags %}
+
+{% block title %}{% translate "Edit Profile" %} | {{ user.name|default:user.email }}{% endblock title %}
+
+{% block content %}
+<div class="container max-w-2xl py-8">
+  <div class="rounded-lg border bg-card shadow-sm">
+    <div class="p-6">
+      <h1 class="text-2xl font-semibold">{% translate "Edit Profile" %}</h1>
+      <p class="text-sm text-muted-foreground mt-1">
+        {% translate "Update your profile information" %}
+      </p>
+    </div>
+    
+    <div class="border-t">
+      <form method="post" action="{% url 'users:update' %}" class="p-6 space-y-6">
+        {% csrf_token %}
+        
+        {% if form.errors %}
+        <div class="rounded-lg border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <div class="flex">
+            <div class="flex-shrink-0">
+              <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+              </svg>
+            </div>
+            <div class="ml-3">
+              <h3 class="font-medium">
+                {% translate "Please correct the errors below:" %}
+              </h3>
+              <div class="mt-2">
+                {{ form.non_field_errors }}
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        <div class="space-y-4">
+          {% for field in form %}
+          <div class="grid gap-2">
+            <label for="{{ field.id_for_label }}" class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+              {{ field.label|default:field.name|title }} {% if field.field.required %}<span class="text-destructive">*</span>{% endif %}
+            </label>
+            {{ field }}
+            {% if field.errors %}
+            <p class="text-sm text-destructive">{{ field.errors.0 }}</p>
+            {% endif %}
+            {% if field.help_text %}
+            <p class="text-sm text-muted-foreground">{{ field.help_text }}</p>
+            {% endif %}
+          </div>
+          {% endfor %}
+        </div>
+
+        <div class="flex justify-end space-x-4 pt-4">
+          <a 
+            href="{% url 'users:detail' request.user.pk %}"
+            class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2"
+          >
+            {% translate "Cancel" %}
+          </a>
+          <button 
+            type="submit"
+            class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2"
+          >
+            {% translate "Save Changes" %}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock content %}

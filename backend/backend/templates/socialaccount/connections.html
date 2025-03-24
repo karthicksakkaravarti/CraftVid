@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% load i18n %}
+
+{% block title %}{% translate "Account Connections" %} | CraftVid{% endblock title %}
+
+{% block content %}
+<div class="container max-w-2xl py-8">
+  <div class="rounded-lg border bg-card shadow-sm">
+    <div class="p-6">
+      <h1 class="text-2xl font-semibold gradient-text">{% translate "Account Connections" %}</h1>
+      <p class="text-sm text-muted-foreground mt-1">
+        {% translate "Manage your connected social accounts" %}
+      </p>
+    </div>
+
+    <div class="border-t">
+      <div class="p-6 space-y-6">
+        {% if form.accounts %}
+        <div class="space-y-4">
+          <p class="text-sm text-muted-foreground">
+            {% blocktranslate %}You can sign in to your account using any of the following third party accounts:{% endblocktranslate %}
+          </p>
+
+          <form method="post" action="{% url 'socialaccount_connections' %}">
+            {% csrf_token %}
+
+            <div class="divide-y border rounded-lg">
+              {% for base_account in form.accounts %}
+              {% with base_account.get_provider_account as account %}
+              <div class="flex items-center justify-between p-4">
+                <div class="flex items-center space-x-4">
+                  <input 
+                    type="radio"
+                    name="account"
+                    value="{{ base_account.id }}"
+                    class="h-4 w-4 rounded-full border border-input ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  />
+                  <div>
+                    <span class="text-sm font-medium gradient-text">{{ account.get_brand.name }}</span>
+                    <p class="text-sm text-muted-foreground">{{ account }}</p>
+                  </div>
+                </div>
+                {% if account.get_avatar_url %}
+                <img 
+                  src="{{ account.get_avatar_url }}" 
+                  alt="{{ account }}"
+                  class="h-8 w-8 rounded-full object-cover ring-2 ring-background"
+                />
+                {% endif %}
+              </div>
+              {% endwith %}
+              {% endfor %}
+            </div>
+
+            <div class="mt-4">
+              <button 
+                type="submit"
+                class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-destructive text-destructive-foreground hover:bg-destructive/90 h-9 px-4 py-2"
+              >
+                {% translate 'Remove' %}
+              </button>
+            </div>
+          </form>
+        </div>
+        {% else %}
+        <p class="text-sm text-muted-foreground">
+          {% translate 'You currently have no social network accounts connected to this account.' %}
+        </p>
+        {% endif %}
+
+        <div class="pt-6 border-t">
+          <h2 class="text-lg font-semibold gradient-text">{% translate "Add a 3rd Party Account" %}</h2>
+          <div class="mt-4 grid gap-4">
+            <ul class="divide-y border rounded-lg bg-muted">
+              {% include "socialaccount/snippets/provider_list.html" with process="connect" %}
+            </ul> 
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% block extra_body %}
+<script type="text/javascript">
+window.addEventListener('DOMContentLoaded', function() {
+  const message = "{% translate 'Are you sure you want to disconnect this account?' %}";
+  document.querySelector('form').addEventListener('submit', function(e) {
+    if (!confirm(message)) {
+      e.preventDefault();
+    }
+  });
+});
+</script>
+{% endblock extra_body %}
+{% endblock content %} 

@@ -1,0 +1,518 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% translate "Image Generator" %} | {{ script.title }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .image-card {
+    transition: all 0.3s ease;
+  }
+  
+  .image-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+  
+  .image-preview {
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    width: 100%;
+    border-radius: 0.5rem 0.5rem 0 0;
+  }
+  
+  .image-preview.portrait {
+    aspect-ratio: 1024 / 1792;
+  }
+  
+  .image-preview.landscape {
+    aspect-ratio: 1792 / 1024;
+  }
+  
+  .loading-overlay {
+    background-color: rgba(255, 255, 255, 0.8);
+    backdrop-filter: blur(4px);
+    z-index: 50;
+  }
+  
+  .spinner {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 3px solid rgba(79, 70, 229, 0.2);
+    border-top-color: rgba(79, 70, 229, 1);
+    animation: spinner 1s linear infinite;
+  }
+  
+  @keyframes spinner {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-8">
+  <!-- Header -->
+  <div class="flex justify-between items-start mb-8">
+    <div>
+      <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
+        <a href="{% url 'workspaces:list' %}" class="hover:text-blue-600">
+          {% translate "Workspaces" %}
+        </a>
+        <span>/</span>
+        <a href="{% url 'workspaces:detail' workspace.id %}" class="hover:text-blue-600">
+          {{ workspace.name }}
+        </a>
+        <span>/</span>
+        <a href="{% url 'workspaces:script_list' workspace.id %}" class="hover:text-blue-600">
+          {% translate "Scripts" %}
+        </a>
+        <span>/</span>
+        <a href="{% url 'workspaces:script_management' workspace.id script.id %}" class="hover:text-blue-600">
+          {{ script.title }}
+        </a>
+        <span>/</span>
+        <span>{% translate "Images" %}</span>
+      </div>
+      <h1 class="text-3xl font-bold text-gray-900">{% translate "Image Generator" %}</h1>
+      <p class="text-gray-600 mt-1">
+        {% translate "Generate and manage images for your script" %}
+      </p>
+    </div>
+    <div>
+      <a href="{% url 'workspaces:script_management' workspace.id script.id %}" class="btn-secondary mr-2">
+        {% translate "Back to Script" %}
+      </a>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <!-- Image generation form -->
+    <div class="lg:col-span-1">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">{% translate "Generate Images" %}</h2>
+        
+        <form id="imageGenerationForm" class="space-y-4">
+          {% csrf_token %}
+          
+          <div>
+            <label for="size" class="block text-sm font-medium text-gray-700 mb-1">
+              {% translate "Image Size" %}
+            </label>
+            <select id="size" name="size" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+              {% for value, label in image_sizes %}
+                <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <div>
+            <label for="quality" class="block text-sm font-medium text-gray-700 mb-1">
+              {% translate "Quality" %}
+            </label>
+            <select id="quality" name="quality" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+              {% for value, label in image_qualities %}
+                <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+            <p class="text-xs text-gray-500 mt-1">{% translate "HD quality costs twice as much as standard." %}</p>
+          </div>
+          
+          <div>
+            <label for="style" class="block text-sm font-medium text-gray-700 mb-1">
+              {% translate "Style" %}
+            </label>
+            <select id="style" name="style" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+              {% for value, label in image_styles %}
+                <option value="{{ value }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          
+          <div class="pt-2">
+            <button type="submit" id="generateBtn" class="w-full btn-primary">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M4 2a2 2 0 00-2 2v11a3 3 0 106 0V4a2 2 0 00-2-2H4zm1 14a1 1 0 100-2 1 1 0 000 2zm5-1.757l4.9-4.9a2 2 0 000-2.828L13.485 5.1a2 2 0 00-2.828 0L10 5.757v8.486zM16 18H9.071l6-6H16a2 2 0 012 2v2a2 2 0 01-2 2z" clip-rule="evenodd" />
+              </svg>
+              {% translate "Generate Images" %}
+            </button>
+          </div>
+          
+          <div class="text-center text-sm text-gray-500 pt-2">
+            {% translate "This will generate" %} <span id="sceneCount">{{ scene_count }}</span> {% translate "images, one for each scene in your script." %}
+          </div>
+        </form>
+      </div>
+      
+      <!-- Script information -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h3 class="text-lg font-bold text-gray-900 mb-4">{% translate "Script Details" %}</h3>
+        <div class="space-y-4">
+          <div>
+            <h4 class="text-sm font-medium text-gray-500">{% translate "Title" %}</h4>
+            <p>{{ script.title }}</p>
+          </div>
+          <div>
+            <h4 class="text-sm font-medium text-gray-500">{% translate "Topic" %}</h4>
+            <p>{{ script.topic }}</p>
+          </div>
+          {% if script.audience %}
+          <div>
+            <h4 class="text-sm font-medium text-gray-500">{% translate "Target Audience" %}</h4>
+            <p>{{ script.audience }}</p>
+          </div>
+          {% endif %}
+          <div>
+            <h4 class="text-sm font-medium text-gray-500">{% translate "Scenes" %}</h4>
+            <p>{{ scene_count }} {% translate "scenes" %}</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Generated images -->
+    <div class="lg:col-span-2">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-xl font-bold text-gray-900">{% translate "Generated Images" %}</h2>
+          <div class="text-sm text-gray-500">
+            {{ media_files.count }} {% translate "images" %}
+          </div>
+        </div>
+        
+        {% if media_files %}
+          <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {% for media in media_files %}
+              <div class="image-card bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <img 
+                  src="{{ media.file.url }}" 
+                  alt="{{ media.name }}" 
+                  class="image-preview {% if '1024x1792' in media.metadata.generation_params.size %}portrait{% elif '1792x1024' in media.metadata.generation_params.size %}landscape{% endif %}"
+                >
+                <div class="p-4">
+                  <h3 class="font-medium text-gray-900 mb-1">{{ media.name }}</h3>
+                  <p class="text-sm text-gray-500 mb-2">
+                    {{ media.created_at|date:"M d, Y H:i" }}
+                  </p>
+                  <div class="flex justify-between items-center">
+                    <span class="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded-full">
+                      {{ media.metadata.generation_params.size }}
+                    </span>
+                    <div class="flex space-x-2">
+                      <button class="text-sm text-blue-600 hover:text-blue-800 view-prompt-btn" data-prompt="{{ media.metadata.prompt }}">
+                        {% translate "View Prompt" %}
+                      </button>
+                      <button class="text-sm text-green-600 hover:text-green-800 regenerate-btn" 
+                              data-media-id="{{ media.id }}"
+                              data-prompt="{{ media.metadata.prompt }}"
+                              data-size="{{ media.metadata.generation_params.size }}"
+                              data-quality="{{ media.metadata.generation_params.quality }}"
+                              data-style="{{ media.metadata.generation_params.style }}">
+                        {% translate "Re-generate" %}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <div class="text-center py-12">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">{% translate "No images generated yet" %}</h3>
+            <p class="text-gray-500 mb-6">{% translate "Use the form to generate images for your script." %}</p>
+          </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Loading overlay -->
+<div id="loadingOverlay" class="fixed inset-0 flex items-center justify-center loading-overlay hidden">
+  <div class="bg-white p-8 rounded-lg shadow-lg text-center">
+    <div class="spinner mx-auto mb-4"></div>
+    <h3 class="text-lg font-medium text-gray-900 mb-2">{% translate "Generating Images" %}</h3>
+    <p class="text-gray-500" id="loadingMessage">{% translate "This may take a minute or two..." %}</p>
+  </div>
+</div>
+
+<!-- Prompt modal -->
+<div id="promptModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center hidden z-50">
+  <div class="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+    <div class="flex justify-between items-start mb-4">
+      <h3 class="text-lg font-bold text-gray-900">{% translate "Image Prompt" %}</h3>
+      <button id="closePromptBtn" class="text-gray-400 hover:text-gray-500">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <div class="mb-4">
+      <p id="promptText" class="text-gray-600 whitespace-pre-wrap"></p>
+    </div>
+    <div class="flex justify-end">
+      <button id="closePromptBtnBottom" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">
+        {% translate "Close" %}
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Re-generate modal -->
+<div id="regenerateModal" class="fixed inset-0 bg-gray-500 bg-opacity-75 flex items-center justify-center hidden z-50">
+  <div class="bg-white rounded-lg shadow-xl max-w-lg w-full p-6">
+    <div class="flex justify-between items-start mb-4">
+      <h3 class="text-lg font-bold text-gray-900">{% translate "Re-generate Image" %}</h3>
+      <button id="closeRegenerateBtn" class="text-gray-400 hover:text-gray-500">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+    <form id="regenerateForm" class="space-y-4">
+      {% csrf_token %}
+      <input type="hidden" id="regenerateMediaId" name="media_id">
+      <div>
+        <label for="regeneratePrompt" class="block text-sm font-medium text-gray-700 mb-1">
+          {% translate "Edit Prompt" %}
+        </label>
+        <textarea id="regeneratePrompt" name="prompt" rows="6" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"></textarea>
+        <p class="text-xs text-gray-500 mt-1">{% translate "Edit the prompt to adjust the image generation." %}</p>
+      </div>
+      <div class="grid grid-cols-3 gap-4">
+        <div>
+          <label for="regenerateSize" class="block text-sm font-medium text-gray-700 mb-1">
+            {% translate "Size" %}
+          </label>
+          <select id="regenerateSize" name="size" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            {% for value, label in image_sizes %}
+              <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="regenerateQuality" class="block text-sm font-medium text-gray-700 mb-1">
+            {% translate "Quality" %}
+          </label>
+          <select id="regenerateQuality" name="quality" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            {% for value, label in image_qualities %}
+              <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label for="regenerateStyle" class="block text-sm font-medium text-gray-700 mb-1">
+            {% translate "Style" %}
+          </label>
+          <select id="regenerateStyle" name="style" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            {% for value, label in image_styles %}
+              <option value="{{ value }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div class="flex justify-end space-x-3 pt-2">
+        <button type="button" id="closeRegenerateBtnBottom" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-md hover:bg-gray-300">
+          {% translate "Cancel" %}
+        </button>
+        <button type="submit" class="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700">
+          {% translate "Re-generate" %}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const imageGenerationForm = document.getElementById('imageGenerationForm');
+    const generateBtn = document.getElementById('generateBtn');
+    const loadingOverlay = document.getElementById('loadingOverlay');
+    const loadingMessage = document.getElementById('loadingMessage');
+    const promptModal = document.getElementById('promptModal');
+    const promptText = document.getElementById('promptText');
+    const closePromptBtn = document.getElementById('closePromptBtn');
+    const closePromptBtnBottom = document.getElementById('closePromptBtnBottom');
+    const viewPromptBtns = document.querySelectorAll('.view-prompt-btn');
+    
+    // Re-generate elements
+    const regenerateModal = document.getElementById('regenerateModal');
+    const regenerateForm = document.getElementById('regenerateForm');
+    const regenerateMediaId = document.getElementById('regenerateMediaId');
+    const regeneratePrompt = document.getElementById('regeneratePrompt');
+    const regenerateSize = document.getElementById('regenerateSize');
+    const regenerateQuality = document.getElementById('regenerateQuality');
+    const regenerateStyle = document.getElementById('regenerateStyle');
+    const closeRegenerateBtn = document.getElementById('closeRegenerateBtn');
+    const closeRegenerateBtnBottom = document.getElementById('closeRegenerateBtnBottom');
+    const regenerateBtns = document.querySelectorAll('.regenerate-btn');
+    
+    // Handle form submission
+    imageGenerationForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      // Show loading overlay
+      loadingOverlay.classList.remove('hidden');
+      generateBtn.disabled = true;
+      
+      // Get form data
+      const formData = new FormData(imageGenerationForm);
+      
+      // Send request to generate images
+      fetch('{% url "workspaces:generate_images" workspace.id script.id %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          loadingMessage.textContent = `${data.media_count} images generated successfully! Refreshing page...`;
+          // Reload the page to show the new images
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+        } else {
+          loadingMessage.textContent = `Error: ${data.error}`;
+          setTimeout(() => {
+            loadingOverlay.classList.add('hidden');
+            generateBtn.disabled = false;
+          }, 2000);
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        loadingMessage.textContent = 'An error occurred. Please try again.';
+        setTimeout(() => {
+          loadingOverlay.classList.add('hidden');
+          generateBtn.disabled = false;
+        }, 2000);
+      });
+    });
+    
+    // Handle view prompt buttons
+    viewPromptBtns.forEach(button => {
+      button.addEventListener('click', function() {
+        const prompt = this.getAttribute('data-prompt');
+        promptText.textContent = prompt;
+        promptModal.classList.remove('hidden');
+      });
+    });
+    
+    // Handle re-generate buttons
+    regenerateBtns.forEach(button => {
+      button.addEventListener('click', function() {
+        const mediaId = this.getAttribute('data-media-id');
+        const prompt = this.getAttribute('data-prompt');
+        const size = this.getAttribute('data-size');
+        const quality = this.getAttribute('data-quality');
+        const style = this.getAttribute('data-style');
+        
+        regenerateMediaId.value = mediaId;
+        regeneratePrompt.value = prompt;
+        
+        // Set the select values
+        Array.from(regenerateSize.options).forEach(option => {
+          if (option.value === size) option.selected = true;
+        });
+        
+        Array.from(regenerateQuality.options).forEach(option => {
+          if (option.value === quality) option.selected = true;
+        });
+        
+        Array.from(regenerateStyle.options).forEach(option => {
+          if (option.value === style) option.selected = true;
+        });
+        
+        regenerateModal.classList.remove('hidden');
+      });
+    });
+    
+    // Handle re-generate form submission
+    regenerateForm.addEventListener('submit', function(e) {
+      e.preventDefault();
+      
+      // Show loading overlay
+      loadingOverlay.classList.remove('hidden');
+      regenerateModal.classList.add('hidden');
+      loadingMessage.textContent = "{% translate 'Re-generating image...' %}";
+      
+      // Get form data
+      const formData = new FormData(regenerateForm);
+      
+      // Send request to re-generate image
+      fetch('{% url "workspaces:regenerate_image" workspace.id script.id %}', {
+        method: 'POST',
+        body: formData,
+        headers: {
+          'X-Requested-With': 'XMLHttpRequest'
+        }
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          loadingMessage.textContent = "{% translate 'Image re-generated successfully! Refreshing page...' %}";
+          // Reload the page to show the new image
+          setTimeout(() => {
+            window.location.reload();
+          }, 1500);
+        } else {
+          loadingMessage.textContent = `Error: ${data.error}`;
+          setTimeout(() => {
+            loadingOverlay.classList.add('hidden');
+          }, 2000);
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        loadingMessage.textContent = 'An error occurred. Please try again.';
+        setTimeout(() => {
+          loadingOverlay.classList.add('hidden');
+        }, 2000);
+      });
+    });
+    
+    // Close prompt modal
+    closePromptBtn.addEventListener('click', function() {
+      promptModal.classList.add('hidden');
+    });
+    
+    closePromptBtnBottom.addEventListener('click', function() {
+      promptModal.classList.add('hidden');
+    });
+    
+    // Close re-generate modal
+    closeRegenerateBtn.addEventListener('click', function() {
+      regenerateModal.classList.add('hidden');
+    });
+    
+    closeRegenerateBtnBottom.addEventListener('click', function() {
+      regenerateModal.classList.add('hidden');
+    });
+    
+    // Close modals when clicking outside
+    promptModal.addEventListener('click', function(e) {
+      if (e.target === promptModal) {
+        promptModal.classList.add('hidden');
+      }
+    });
+    
+    regenerateModal.addEventListener('click', function(e) {
+      if (e.target === regenerateModal) {
+        regenerateModal.classList.add('hidden');
+      }
+    });
+  });
+</script>
+{% endblock %} 

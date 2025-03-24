@@ -1,0 +1,404 @@
+{% extends "base.html" %}
+{% load static i18n workspace_tags %}
+
+{% block title %}{{ workspace.name }} | {% translate "Workspace" %}{% endblock %}
+
+{% block content %}
+<div class="container py-8">
+  <!-- Workspace Header -->
+  <div class="flex justify-between items-start mb-8">
+    <div>
+      <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
+        <a href="{% url 'workspaces:list' %}" class="hover:text-blue-600">
+          {% translate "Workspaces" %}
+        </a>
+        <span>/</span>
+        <span>{{ workspace.name }}</span>
+      </div>
+      <h1 class="text-3xl font-bold text-gray-900">{{ workspace.name }}</h1>
+      <p class="text-gray-600 mt-1 max-w-2xl">
+        {{ workspace.description|default:"No description" }}
+      </p>
+    </div>
+    <div class="flex gap-4">
+      <a href="{% url 'workspaces:update' workspace.id %}" class="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-sm transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+          <path d="m15 5 4 4"/>
+        </svg>
+        {% translate "Edit" %}
+      </a>
+      
+      <div class="relative" x-data="{ open: false }">
+        <button 
+          @click="open = !open"
+          class="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="1"/>
+            <circle cx="19" cy="12" r="1"/>
+            <circle cx="5" cy="12" r="1"/>
+          </svg>
+          {% translate "More" %}
+        </button>
+        <div 
+          x-show="open"
+          @click.outside="open = false"
+          x-transition:enter="transition ease-out duration-100"
+          x-transition:enter-start="transform opacity-0 scale-95"
+          x-transition:enter-end="transform opacity-100 scale-100"
+          x-transition:leave="transition ease-in duration-75"
+          x-transition:leave-start="transform opacity-100 scale-100"
+          x-transition:leave-end="transform opacity-0 scale-95"
+          class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 z-50"
+          style="display: none;"
+        >
+          <div class="py-1">
+            <a href="#" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+                <circle cx="9" cy="7" r="4"/>
+                <path d="M19 8v6"/>
+                <path d="M16 11h6"/>
+              </svg>
+              {% translate "Add Member" %}
+            </a>
+            <a href="#" class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+              </svg>
+              {% translate "Visibility Settings" %}
+            </a>
+            <a href="{% url 'workspaces:delete' workspace.id %}" class="flex items-center px-4 py-2 text-sm text-red-600 hover:bg-red-100">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M3 6h18M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2M10 11v6M14 11v6"/>
+              </svg>
+              {% translate "Delete Workspace" %}
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Workspace Status Overview -->
+  <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+   
+    
+    <!-- Scripts Status -->
+    <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+      <div class="flex items-start">
+        <div class="flex-shrink-0 bg-purple-100 rounded-md p-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-purple-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+            <path d="M14 2v6h6"/>
+            <path d="M16 13H8"/>
+            <path d="M16 17H8"/>
+            <path d="M10 9H8"/>
+          </svg>
+        </div>
+        <div class="ml-4">
+          <h3 class="text-sm font-medium text-gray-900">{% translate "Scripts" %}</h3>
+          <p class="mt-1 text-sm text-gray-600">
+            {{ workspace.scripts.count }} {% translate "scripts" %}
+            {% with finalized_scripts=workspace.scripts.all %}
+            ({{ finalized_scripts|dictsortreversed:"status"|slice:":1"|length }} {% translate "finalized" %})
+            {% endwith %}
+          </p>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Videos Status -->
+    <div class="bg-white rounded-lg border border-gray-200 shadow-sm p-4">
+      <div class="flex items-start">
+        <div class="flex-shrink-0 bg-green-100 rounded-md p-2">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
+            <path d="M10 8V16l6-4-6-4Z"/>
+          </svg>
+        </div>
+        <div class="ml-4">
+          <h3 class="text-sm font-medium text-gray-900">{% translate "Videos" %}</h3>
+          <p class="mt-1 text-sm text-gray-600">
+            {{ workspace.screens.count }} {% translate "videos" %}
+            {% with videos=workspace.screens.all %}
+            {% with generated_videos=videos|dictsortreversed:"output_file"|slice:":1" %}
+            ({{ generated_videos|length }} {% translate "generated" %})
+            {% endwith %}
+            {% endwith %}
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Workspace Content Tabs -->
+  <div class="border-b border-gray-200 mb-8">
+    <nav class="-mb-px flex space-x-8" aria-label="Tabs">
+      <a href="{% url 'workspaces:detail' workspace.id %}" class="border-blue-500 text-blue-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+        {% translate "Dashboard" %}
+      </a>
+      <a href="#media" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+        {% translate "Media" %}
+      </a>
+      <a href="{% url 'workspaces:script_list' workspace.id %}" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+        {% translate "Scripts" %}
+      </a>
+      <a href="#members" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+        {% translate "Members" %}
+      </a>
+      <a href="{% url 'workspaces:update' workspace.id %}" class="border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+        {% translate "Settings" %}
+      </a>
+    </nav>
+  </div>
+
+  <!-- Main Content Grid -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <!-- Left Column: Scripts -->
+    <div class="lg:col-span-1">
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-lg font-bold text-gray-900">{% translate "Scripts" %}</h2>
+          <a href="{% url 'workspaces:script_list' workspace.id %}" class="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-sm transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+            {% translate "New Script" %}
+          </a>
+        </div>
+        
+        <div class="space-y-4">
+          {% for script in workspace.scripts.all %}
+            <div class="p-4 border border-gray-200 rounded-lg hover:border-blue-500 transition-colors">
+              <div class="flex justify-between items-start">
+                <div>
+                  <h3 class="font-medium text-gray-900">{{ script.title }}</h3>
+                  <p class="text-sm text-gray-500 mt-1">{{ script.created_at|date:"M d, Y" }}</p>
+                </div>
+                <span class="inline-flex items-center rounded-full bg-{{ script.status|yesno:'green,yellow,red' }}-100 px-2.5 py-0.5 text-xs font-medium text-{{ script.status|yesno:'green,yellow,red' }}-800">
+                  {{ script.status|title }}
+                </span>
+              </div>
+            </div>
+          {% empty %}
+            <div class="text-center py-8 text-gray-500">
+              <p>{% translate "No scripts created yet." %}</p>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Middle Column: Generated Videos -->
+    <div class="lg:col-span-2">
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-lg font-bold text-gray-900">{% translate "Generated Videos" %}</h2>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {% for screen in workspace.screens.all %}
+            {% if screen.output_file %}
+              <div class="bg-gray-50 rounded-lg overflow-hidden">
+                <div class="aspect-w-16 aspect-h-9">
+                  <video class="w-full h-full object-cover" controls poster="{% static 'images/video-placeholder.jpg' %}">
+                    <source src="{{ screen.output_file.url }}" type="video/mp4">
+                  </video>
+                </div>
+                <div class="p-4">
+                  <h3 class="font-medium text-gray-900">{{ screen.name }}</h3>
+                  <p class="text-sm text-gray-500 mt-1">{{ screen.created_at|date:"M d, Y" }}</p>
+                  <div class="flex justify-between items-center mt-3">
+                    <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
+                      {% translate "Completed" %}
+                    </span>
+                    <button class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+                      {% translate "Download" %}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+          {% empty %}
+            <div class="col-span-full text-center py-12 bg-gray-50 rounded-xl border border-dashed border-gray-300">
+              <div class="w-20 h-20 mx-auto rounded-full bg-blue-100 flex items-center justify-center mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="2" y="2" width="20" height="20" rx="2.18" ry="2.18"/>
+                  <path d="M10 8V16l6-4-6-4Z"/>
+                </svg>
+              </div>
+              <h3 class="text-lg font-medium text-gray-900 mb-1">{% translate "No Videos Generated" %}</h3>
+              <p class="text-gray-600 mb-4">
+                {% translate "Create a script and generate your first video." %}
+              </p>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- Assets Section -->
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <div class="flex justify-between items-center mb-6">
+          <h2 class="text-lg font-bold text-gray-900">{% translate "Assets" %}</h2>
+          <button class="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-sm transition-colors">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M12 5v14M5 12h14"/>
+            </svg>
+            {% translate "Upload Assets" %}
+          </button>
+        </div>
+
+        <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+          {% for asset in workspace.assets.all %}
+            <div class="group relative aspect-square bg-gray-100 rounded-lg overflow-hidden">
+              {% if asset.type == 'image' %}
+                <img src="{{ asset.file.url }}" alt="{{ asset.name }}" class="w-full h-full object-cover">
+              {% elif asset.type == 'video' %}
+                <video class="w-full h-full object-cover">
+                  <source src="{{ asset.file.url }}" type="video/mp4">
+                </video>
+              {% elif asset.type == 'audio' %}
+                <div class="w-full h-full flex items-center justify-center bg-blue-100">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M9 18V5l12-2v13"/>
+                    <circle cx="6" cy="18" r="3"/>
+                    <circle cx="18" cy="16" r="3"/>
+                  </svg>
+                </div>
+              {% endif %}
+              <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-50 transition-opacity flex items-center justify-center opacity-0 group-hover:opacity-100">
+                <button class="p-2 bg-white rounded-full text-gray-900 hover:text-blue-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="m21 21-6-6m2-5a7 7 0 1 1-14 0 7 7 0 0 1 14 0Z"/>
+                  </svg>
+                </button>
+              </div>
+            </div>
+          {% empty %}
+            <div class="col-span-full text-center py-8 text-gray-500">
+              <p>{% translate "No assets uploaded yet." %}</p>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Members Section -->
+  <div id="members" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-8">
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-lg font-bold text-gray-900">{% translate "Workspace Members" %}</h2>
+      <button class="inline-flex items-center justify-center rounded-lg px-3 py-1.5 text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-sm transition-colors">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 mr-2" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
+          <circle cx="9" cy="7" r="4"/>
+          <path d="M19 8v6"/>
+          <path d="M16 11h6"/>
+        </svg>
+        {% translate "Invite Member" %}
+      </button>
+    </div>
+
+    <div class="overflow-hidden">
+      <table class="min-w-full divide-y divide-gray-200">
+        <thead class="bg-gray-50">
+          <tr>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {% translate "User" %}
+            </th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {% translate "Role" %}
+            </th>
+            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              {% translate "Joined" %}
+            </th>
+            <th scope="col" class="relative px-6 py-3">
+              <span class="sr-only">{% translate "Actions" %}</span>
+            </th>
+          </tr>
+        </thead>
+        <tbody class="bg-white divide-y divide-gray-200">
+          {% for member in workspace.workspacemember_set.all %}
+          <tr>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <div class="flex items-center">
+                <div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center mr-3">
+                  <span class="text-blue-600 text-sm font-medium">{{ member.user.name|default:member.user.email|slice:":2"|upper }}</span>
+                </div>
+                <div>
+                  <div class="text-sm font-medium text-gray-900">{{ member.user.name|default:"No name" }}</div>
+                  <div class="text-sm text-gray-500">{{ member.user.email }}</div>
+                </div>
+              </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+              <span class="inline-flex rounded-full bg-{{ member.role|yesno:'blue,green,gray' }}-100 px-2 py-1 text-xs font-medium text-{{ member.role|yesno:'blue,green,gray' }}-700">
+                {{ member.role|title }}
+              </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+              {{ member.joined_at|date:"M d, Y" }}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+              {% if member.user != workspace.owner %}
+              <div class="flex justify-end gap-2">
+                <button class="text-blue-600 hover:text-blue-900">{% translate "Edit" %}</button>
+                <button class="text-red-600 hover:text-red-900">{% translate "Remove" %}</button>
+              </div>
+              {% else %}
+              <span class="text-gray-400">{% translate "Owner" %}</span>
+              {% endif %}
+            </td>
+          </tr>
+          {% empty %}
+          <tr>
+            <td colspan="4" class="px-6 py-8 text-center text-gray-500">
+              {% translate "No members found." %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Activity Section -->
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+    <h2 class="text-lg font-bold text-gray-900 mb-6">{% translate "Recent Activity" %}</h2>
+    
+    <div class="flow-root">
+      <ul role="list" class="-mb-8">
+        <li>
+          <div class="relative pb-8">
+            <span class="absolute top-5 left-5 -ml-px h-full w-0.5 bg-gray-200" aria-hidden="true"></span>
+            <div class="relative flex items-start space-x-3">
+              <div class="relative">
+                <div class="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center ring-8 ring-white">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 5v14M5 12h14"/>
+                  </svg>
+                </div>
+              </div>
+              <div class="min-w-0 flex-1">
+                <div>
+                  <div class="text-sm">
+                    <a href="#" class="font-medium text-gray-900">{{ workspace.owner.name|default:workspace.owner.email }}</a>
+                    <span class="text-gray-500">{% translate "created this workspace" %}</span>
+                  </div>
+                  <p class="mt-0.5 text-sm text-gray-500">
+                    {{ workspace.created_at|date:"M d, Y" }} {% translate "at" %} {{ workspace.created_at|time:"H:i" }}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </li>
+        
+        <!-- Add more activity items here -->
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %} 

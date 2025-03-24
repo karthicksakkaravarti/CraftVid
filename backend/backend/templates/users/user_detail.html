@@ -1,0 +1,315 @@
+{% extends "base.html" %}
+{% load static user_filters %}
+{% load i18n %}
+
+{% block title %}{{ object.name|default:object.email }} | {% translate "Profile" %}{% endblock title %}
+
+{% block content %}
+<div class="container py-8">
+  <!-- Profile Header -->
+  <div class="relative mb-8">
+    <!-- Cover Image -->
+    <div class="h-48 w-full rounded-xl bg-gradient-to-r from-primary/20 via-primary/10 to-accent/20 overflow-hidden">
+      <div class="absolute inset-0 bg-grid-white/10 bg-grid-pattern"></div>
+    </div>
+    
+    <!-- Profile Info -->
+    <div class="absolute -bottom-16 left-8 flex items-end space-x-6">
+      {% if object.socialaccount_set.exists %}
+        {% with account=object.socialaccount_set.first %}
+          <img 
+            src="{{ account.get_avatar_url }}" 
+            alt="{{ object.name }}"
+            class="h-32 w-32 rounded-xl border-4 border-background object-cover shadow-xl"
+          />
+        {% endwith %}
+      {% else %}
+        <div class="h-32 w-32 rounded-xl bg-primary/10 flex items-center justify-center border-4 border-background shadow-xl">
+          <span class="text-5xl font-medium text-primary">
+            {{ object.name|default:object.email|slice:":2"|upper }}
+          </span>
+        </div>
+      {% endif %}
+      
+      <div class="mb-4 flex flex-col">
+        <h1 class="text-2xl font-bold">
+          {{ object.name|default:"No name set" }}
+        </h1>
+        <p class="text-muted-foreground">
+          {{ object.email }}
+        </p>
+      </div>
+    </div>
+
+    {% if object == request.user %}
+    <div class="absolute right-8 bottom-4">
+      <a 
+        href="{% url 'users:update' %}" 
+        class="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring bg-background border hover:bg-accent"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" class="mr-2 h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+          <path d="m15 5 4 4"/>
+        </svg>
+        {% translate "Edit Profile" %}
+      </a>
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- Main Content -->
+  <div class="mt-20 grid gap-8 lg:grid-cols-12">
+    <!-- Left Sidebar -->
+    <div class="lg:col-span-4 space-y-6">
+      <!-- Quick Stats -->
+      <div class="rounded-xl border bg-card p-6 shadow-sm">
+        <h3 class="font-semibold text-lg mb-4 gradient-text">{% translate "Account Info" %}</h3>
+        <div class="space-y-4">
+          <div class="flex justify-between items-center py-2 border-b border-border/40">
+            <span class="text-sm text-muted-foreground">{% translate "Member since" %}</span>
+            <span class="text-sm font-medium gradient-text">{{ object.date_joined|date:"F j, Y" }}</span>
+          </div>
+          <div class="flex justify-between items-center py-2 border-b border-border/40">
+            <span class="text-sm text-muted-foreground">{% translate "Last login" %}</span>
+            <span class="text-sm font-medium gradient-text">{{ object.last_login|date:"F j, Y" }}</span>
+          </div>
+          <div class="flex justify-between items-center py-2">
+            <span class="text-sm text-muted-foreground">{% translate "Status" %}</span>
+            <span class="inline-flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+              {% translate "Active" %}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Subscription Information (New) -->
+      <div class="rounded-xl border bg-card p-6 shadow-sm">
+        <h3 class="font-semibold text-lg mb-4 gradient-text">{% translate "Subscription" %}</h3>
+        <div class="space-y-4">
+          <div class="flex justify-between items-center py-2 border-b border-border/40">
+            <span class="text-sm text-muted-foreground">{% translate "Plan" %}</span>
+            <span class="text-sm font-medium gradient-text">
+              {{ object.subscription_plan|title }}
+            </span>
+          </div>
+          <div class="flex justify-between items-center py-2 border-b border-border/40">
+            <span class="text-sm text-muted-foreground">{% translate "Status" %}</span>
+            <span class="inline-flex items-center rounded-full {% if object.is_subscription_active %}bg-green-100 text-green-700{% else %}bg-amber-100 text-amber-700{% endif %} px-2 py-1 text-xs font-medium">
+              {{ object.subscription_status|title }}
+            </span>
+          </div>
+          {% if object.subscription_start_date %}
+          <div class="flex justify-between items-center py-2 border-b border-border/40">
+            <span class="text-sm text-muted-foreground">{% translate "Start date" %}</span>
+            <span class="text-sm font-medium gradient-text">{{ object.subscription_start_date|date:"F j, Y" }}</span>
+          </div>
+          {% endif %}
+          {% if object.subscription_end_date %}
+          <div class="flex justify-between items-center py-2">
+            <span class="text-sm text-muted-foreground">{% translate "End date" %}</span>
+            <span class="text-sm font-medium gradient-text">{{ object.subscription_end_date|date:"F j, Y" }}</span>
+          </div>
+          {% endif %}
+          
+          {% if object == request.user %}
+          <div class="mt-4 pt-4 border-t border-border/40">
+            <a 
+              href="#" 
+              class="inline-flex w-full items-center justify-center rounded-lg px-4 py-2 text-sm font-medium shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring bg-primary text-white hover:bg-primary/90"
+            >
+              {% if object.is_subscription_active %}
+                {% translate "Manage Subscription" %}
+              {% else %}
+                {% translate "Upgrade Plan" %}
+              {% endif %}
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- Connected Accounts -->
+      <div class="rounded-xl border bg-card p-6 shadow-sm">
+        <div class="flex items-center justify-between mb-4">
+          <h3 class="font-semibold text-lg gradient-text">{% translate "Connected Accounts" %}</h3>
+          <a 
+            href="{% url 'socialaccount_connections' %}" 
+            class="text-sm text-primary hover:underline"
+          >
+            {% translate "Manage" %}
+          </a>
+        </div>
+        {% if object.socialaccount_set.exists %}
+          <div class="space-y-3">
+            {% for account in object.socialaccount_set.all %}
+            <div class="flex items-center justify-between p-3 rounded-lg bg-muted">
+              <div class="flex items-center space-x-3">
+                <img src="{% static 'images/providers/'|add:account.provider|add:'.svg' %}" alt="{{ account.provider }}" class="h-5 w-5" />
+                <span class="text-sm font-medium gradient-text">{{ account.provider|title }}</span>
+              </div>
+              <span class="inline-flex items-center rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                {% translate "Connected" %}
+              </span>
+            </div>
+            {% endfor %}
+          </div>
+        {% else %}
+          <p class="text-sm text-muted-foreground">
+            {% translate "No connected accounts" %}
+          </p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Main Settings Area -->
+    <div class="lg:col-span-8 space-y-6">
+      {% if object == request.user %}
+      <!-- Account Settings -->
+      <div class="rounded-xl border bg-card shadow-sm divide-y divide-border">
+        <div class="p-6">
+          <h3 class="text-lg font-semibold gradient-text">{% translate "Account Settings" %}</h3>
+          <p class="text-sm text-muted-foreground mt-1">
+            {% translate "Manage your account settings and preferences" %}
+          </p>
+        </div>
+
+        <!-- Email Settings -->
+        <div class="flex items-center justify-between p-6">
+          <div class="space-y-0.5">
+            <h4 class="text-base font-medium gradient-text">{% translate "Email Settings" %}</h4>
+            <p class="text-sm text-muted-foreground">
+              {% translate "Manage your email addresses and preferences" %}
+            </p>
+          </div>
+          <a 
+            href="{% url 'account_email' %}" 
+            class="gradient-text inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 border border-primary" 
+          >
+            {% translate "Manage" %}
+          </a>
+        </div>
+
+        <!-- API Tokens (New) -->
+        <div class="flex items-center justify-between p-6">
+          <div class="space-y-0.5">
+            <h4 class="text-base font-medium gradient-text">{% translate "API Tokens" %}</h4>
+            <p class="text-sm text-muted-foreground">
+              {% translate "Manage your OpenAI and ElevenLabs API tokens" %}
+            </p>
+          </div>
+          <a 
+            href="{% url 'users:token-management' %}" 
+            class="gradient-text inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 border border-primary" 
+          >
+            {% translate "Manage" %}
+          </a>
+        </div>
+
+        <!-- Two-Factor Authentication -->
+        <div class="flex items-center justify-between p-6">
+          <div class="space-y-0.5">
+            <h4 class="text-base font-medium gradient-text">{% translate "Two-Factor Authentication" %}</h4>
+            <p class="text-sm text-muted-foreground">
+              {% translate "Add an extra layer of security to your account" %}
+            </p>
+          </div>
+          <a 
+            href="{% url 'mfa_index' %}" 
+            class="gradient-text inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 border bg-background hover:bg-accent"
+          >
+            {% translate "Configure" %}
+          </a>
+        </div>
+
+        <!-- Delete Account -->
+        <div class="flex items-center justify-between p-6">
+          <div class="space-y-0.5">
+            <h4 class="text-base font-medium text-destructive">{% translate "Delete Account" %}</h4>
+            <p class="text-sm text-muted-foreground">
+              {% translate "Permanently delete your account and all data" %}
+            </p>
+          </div>
+          <button 
+            onclick="alert('{% translate "This feature is not yet implemented" %}')"
+            class="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+          >
+            {% translate "Delete" %}
+          </button>
+        </div>
+      </div>
+
+      <!-- API Usage Summary (New) -->
+      <div class="rounded-xl border bg-card p-6 shadow-sm">
+        <h3 class="text-lg font-semibold mb-4 gradient-text">{% translate "API Usage This Month" %}</h3>
+        {% with current_month=object.monthly_usage|get_current_month %}
+          {% if current_month %}
+            <div class="space-y-4">
+              {% for feature, usage in current_month.items %}
+                {% with limit=object.get_subscription_features|get_feature_limit:feature %}
+                  <div>
+                    <div class="flex justify-between items-center mb-2">
+                      <span class="text-sm font-medium">{{ feature|title }}</span>
+                      <span class="text-xs text-muted-foreground">{{ usage }} / {% if limit > 0 %}{{ limit }}{% else %}∞{% endif %}</span>
+                    </div>
+                    <div class="w-full bg-muted rounded-full h-2">
+                      {% if limit > 0 %}
+                        <div class="bg-primary h-2 rounded-full" style="width: {{ usage|percentage_of:limit }}%"></div>
+                      {% else %}
+                        <div class="bg-primary h-2 rounded-full" style="width: 15%"></div>
+                      {% endif %}
+                    </div>
+                  </div>
+                {% endwith %}
+              {% endfor %}
+            </div>
+          {% else %}
+            <p class="text-sm text-muted-foreground">
+              {% translate "No API usage recorded this month" %}
+            </p>
+          {% endif %}
+        {% endwith %}
+      </div>
+
+      <!-- Recent Activity -->
+      <div class="rounded-xl border bg-card p-6 shadow-sm">
+        <h3 class="text-lg font-semibold mb-4 gradient-text">{% translate "Recent Activity" %}</h3>
+        <div class="space-y-4">
+          <!-- Activity Item -->
+          <div class="flex items-start space-x-4 p-4 rounded-lg bg-muted">
+            <div class="rounded-full bg-primary/10 p-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 2v20M2 12h20"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium gradient-text">{% translate "Account Created" %}</p>
+              <p class="text-xs text-muted-foreground">{{ object.date_joined|date:"F j, Y" }}</p>
+            </div>
+          </div>
+          <!-- Last Login -->
+          <div class="flex items-start space-x-4 p-4 rounded-lg bg-muted">
+            <div class="rounded-full bg-primary/10 p-2">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-primary" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4M10 17l5-5-5-5M13.8 12H3"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium gradient-text">{% translate "Last Login" %}</p>
+              <p class="text-xs text-muted-foreground">{{ object.last_login|date:"F j, Y" }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<style>
+.bg-grid-pattern {
+  background-size: 100px 100px;
+  background-image: linear-gradient(to right, rgb(255 255 255 / 0.1) 1px, transparent 1px),
+                    linear-gradient(to bottom, rgb(255 255 255 / 0.1) 1px, transparent 1px);
+}
+</style>
+{% endblock content %}

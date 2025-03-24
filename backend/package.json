@@ -1,0 +1,13 @@
+{
+  "name": "craftvid",
+  "version": "1.0.0",
+  "description": "Professional Video Creation Platform",
+  "scripts": {
+    "dev": "tailwindcss -i ./backend/static/css/globals.css -o ./backend/static/css/dist/globals.css --watch",
+    "build": "tailwindcss -i ./backend/static/css/globals.css -o ./backend/static/css/dist/globals.css --minify"
+  },
+  "dependencies": {
+    "tailwindcss": "^3.3.0",
+    "tailwindcss-animate": "^1.0.7"
+  }
+} 

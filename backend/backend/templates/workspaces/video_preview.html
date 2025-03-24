@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+{% load i18n %}
+{% load static %}
+
+{% block title %}{% translate "Video Preview" %} | {{ screen.name }}{% endblock %}
+
+{% block extra_css %}
+<style>
+  .video-container {
+    position: relative;
+    width: 100%;
+    background-color: #000;
+    border-radius: 0.5rem;
+    overflow: hidden;
+  }
+  
+  .video-player {
+    width: 100%;
+    display: block;
+  }
+  
+  .video-controls {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+    padding: 1rem;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+  }
+  
+  .video-container:hover .video-controls {
+    opacity: 1;
+  }
+  
+  .timeline {
+    width: 100%;
+    height: 4px;
+    background-color: rgba(255,255,255,0.3);
+    border-radius: 2px;
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+  }
+  
+  .progress {
+    height: 100%;
+    background-color: #6366f1;
+    border-radius: 2px;
+    width: 0%;
+  }
+  
+  .control-buttons {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    color: white;
+  }
+  
+  .left-controls, .right-controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+  }
+  
+  .control-button {
+    background: none;
+    border: none;
+    color: white;
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  
+  .control-button:hover {
+    color: #6366f1;
+  }
+  
+  .time-display {
+    font-size: 0.875rem;
+    font-family: monospace;
+  }
+  
+  .info-card {
+    transition: all 0.3s ease;
+  }
+  
+  .info-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+  }
+  
+  .scene-thumbnail {
+    width: 100%;
+    height: 120px;
+    object-fit: cover;
+    border-radius: 0.375rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container py-8">
+  <!-- Header -->
+  <div class="flex justify-between items-start mb-8">
+    <div>
+      <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
+        <a href="{% url 'workspaces:list' %}" class="hover:text-blue-600">
+          {% translate "Workspaces" %}
+        </a>
+        <span>/</span>
+        <a href="{% url 'workspaces:detail' workspace.id %}" class="hover:text-blue-600">
+          {{ workspace.name }}
+        </a>
+        <span>/</span>
+        <span>{% translate "Video Preview" %}</span>
+      </div>
+      <h1 class="text-3xl font-bold text-gray-900">{{ screen.name }}</h1>
+      <p class="text-gray-600 mt-1">
+        {% translate "Preview and manage your generated video" %}
+      </p>
+    </div>
+    <div>
+      <a href="{% url 'workspaces:detail' workspace.id %}" class="btn-secondary">
+        {% translate "Back to Workspace" %}
+      </a>
+    </div>
+  </div>
+
+  <!-- Main content -->
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+    <!-- Video player -->
+    <div class="lg:col-span-2">
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 class="text-xl font-bold text-gray-900 mb-4">{% translate "Video Preview" %}</h2>
+        
+        {% if screen.output_file %}
+          <div class="video-container mb-6" id="videoContainer">
+            <video id="videoPlayer" class="video-player" poster="{% static 'images/video-placeholder.jpg' %}">
+              <source src="{{ screen.output_file.url }}" type="video/mp4">
+              {% translate "Your browser does not support the video tag." %}
+            </video>
+            <div class="video-controls" id="videoControls">
+              <div class="timeline" id="timeline">
+                <div class="progress" id="progress"></div>
+              </div>
+              <div class="control-buttons">
+                <div class="left-controls">
+                  <button class="control-button" id="playPauseBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </button>
+                  <div class="time-display">
+                    <span id="currentTime">00:00</span> / <span id="duration">00:00</span>
+                  </div>
+                </div>
+                <div class="right-controls">
+                  <button class="control-button" id="muteBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                    </svg>
+                  </button>
+                  <button class="control-button" id="fullscreenBtn">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5v-4m0 4h-4m4 0l-5-5" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Video information -->
+          <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {% if video_info %}
+              <div class="bg-gray-50 p-3 rounded-lg">
+                <h3 class="text-xs font-medium text-gray-500 uppercase">{% translate "Duration" %}</h3>
+                <p class="text-lg font-semibold">{{ video_info.duration|floatformat:1 }}s</p>
+              </div>
+              <div class="bg-gray-50 p-3 rounded-lg">
+                <h3 class="text-xs font-medium text-gray-500 uppercase">{% translate "Resolution" %}</h3>
+                <p class="text-lg font-semibold">{{ video_info.width }}x{{ video_info.height }}</p>
+              </div>
+              <div class="bg-gray-50 p-3 rounded-lg">
+                <h3 class="text-xs font-medium text-gray-500 uppercase">{% translate "Size" %}</h3>
+                <p class="text-lg font-semibold">{{ video_info.size|filesizeformat }}</p>
+              </div>
+              <div class="bg-gray-50 p-3 rounded-lg">
+                <h3 class="text-xs font-medium text-gray-500 uppercase">{% translate "FPS" %}</h3>
+                <p class="text-lg font-semibold">{{ video_info.fps|floatformat:0 }}</p>
+              </div>
+            {% endif %}
+          </div>
+        {% else %}
+          <div class="text-center py-12 bg-gray-50 rounded-lg">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mx-auto text-gray-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            <h3 class="text-lg font-medium text-gray-900 mb-2">{% translate "No video available" %}</h3>
+            <p class="text-gray-500 mb-6">{% translate "This screen doesn't have a generated video yet." %}</p>
+            {% if scripts %}
+              <a href="{% url 'workspaces:video_editor' workspace.id scripts.0.id %}" class="btn-primary">
+                {% translate "Generate Video" %}
+              </a>
+            {% endif %}
+          </div>
+        {% endif %}
+      </div>
+    </div>
+    
+    <!-- Sidebar -->
+    <div class="lg:col-span-1">
+      <!-- Video actions -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+        <h2 class="text-lg font-bold text-gray-900 mb-4">{% translate "Actions" %}</h2>
+        <div class="space-y-3">
+          {% if screen.output_file %}
+            <a href="{{ screen.output_file.url }}" download class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+              <div class="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600 mr-3" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" />
+                </svg>
+                <span>{% translate "Download Video" %}</span>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+              </svg>
+            </a>
+            <a href="#" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+              <div class="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600 mr-3" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M15 8a3 3 0 10-2.977-2.63l-4.94 2.47a3 3 0 100 4.319l4.94 2.47a3 3 0 10.895-1.789l-4.94-2.47a3.027 3.027 0 000-.74l4.94-2.47C13.456 7.68 14.19 8 15 8z" />
+                </svg>
+                <span>{% translate "Share Video" %}</span>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+              </svg>
+            </a>
+            <a href="#" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+              <div class="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600 mr-3" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clip-rule="evenodd" />
+                </svg>
+                <span>{% translate "Regenerate Video" %}</span>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+              </svg>
+            </a>
+          {% endif %}
+          
+          {% if scripts %}
+            <a href="{% url 'workspaces:script_management' workspace.id scripts.0.id %}" class="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors">
+              <div class="flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-blue-600 mr-3" viewBox="0 0 20 20" fill="currentColor">
+                  <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" />
+                </svg>
+                <span>{% translate "Edit Script" %}</span>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+              </svg>
+            </a>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- Video details -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-bold text-gray-900 mb-4">{% translate "Details" %}</h2>
+        <div class="space-y-4">
+          <div>
+            <h3 class="text-sm font-medium text-gray-500">{% translate "Status" %}</h3>
+            <div class="mt-1 flex items-center">
+              <span class="inline-flex items-center rounded-full bg-{{ screen.status|yesno:'green,yellow,red' }}-100 px-2.5 py-0.5 text-xs font-medium text-{{ screen.status|yesno:'green,yellow,red' }}-800">
+                {{ screen.status|title }}
+              </span>
+            </div>
+          </div>
+          <div>
+            <h3 class="text-sm font-medium text-gray-500">{% translate "Created" %}</h3>
+            <p class="mt-1">{{ screen.created_at|date:"M d, Y H:i" }}</p>
+          </div>
+          {% if screen.settings %}
+            <div>
+              <h3 class="text-sm font-medium text-gray-500">{% translate "Quality" %}</h3>
+              <p class="mt-1">{{ screen.settings.quality|default:"Medium"|title }}</p>
+            </div>
+          {% endif %}
+          {% if scripts %}
+            <div>
+              <h3 class="text-sm font-medium text-gray-500">{% translate "Script" %}</h3>
+              <p class="mt-1">
+                <a href="{% url 'workspaces:script_management' workspace.id scripts.0.id %}" class="text-blue-600 hover:text-blue-800">
+                  {{ scripts.0.title }}
+                </a>
+              </p>
+            </div>
+          {% endif %}
+          {% if media_files %}
+            <div>
+              <h3 class="text-sm font-medium text-gray-500">{% translate "Media Files" %}</h3>
+              <p class="mt-1">{{ media_files.count }} files</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/video-player.js' %}"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const videoContainer = document.getElementById('videoContainer');
+    const videoPlayer = document.getElementById('videoPlayer');
+    const videoControls = document.getElementById('videoControls');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const muteBtn = document.getElementById('muteBtn');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    const timeline = document.getElementById('timeline');
+    const progress = document.getElementById('progress');
+    const currentTimeElement = document.getElementById('currentTime');
+    const durationElement = document.getElementById('duration');
+    
+    // Hide the default controls
+    videoPlayer.controls = false;
+    
+    // Initialize video player
+    if (videoPlayer) {
+      // Play/Pause
+      playPauseBtn.addEventListener('click', function() {
+        if (videoPlayer.paused) {
+          videoPlayer.play();
+          playPauseBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 9v6m4-6v6m7-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          `;
+        } else {
+          videoPlayer.pause();
+          playPauseBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          `;
+        }
+      });
+      
+      // Click on video to play/pause
+      videoPlayer.addEventListener('click', function() {
+        playPauseBtn.click();
+      });
+      
+      // Mute/Unmute
+      muteBtn.addEventListener('click', function() {
+        videoPlayer.muted = !videoPlayer.muted;
+        if (videoPlayer.muted) {
+          muteBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2" />
+            </svg>
+          `;
+        } else {
+          muteBtn.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+            </svg>
+          `;
+        }
+      });
+      
+      // Fullscreen
+      fullscreenBtn.addEventListener('click', function() {
+        if (!document.fullscreenElement) {
+          videoContainer.requestFullscreen().catch(err => {
+            console.error(`Error attempting to enable fullscreen: ${err.message}`);
+          });
+        } else {
+          document.exitFullscreen();
+        }
+      });
+      
+      // Timeline
+      timeline.addEventListener('click', function(e) {
+        const rect = timeline.getBoundingClientRect();
+        const pos = (e.clientX - rect.left) / rect.width;
+        videoPlayer.currentTime = pos * videoPlayer.duration;
+      });
+      
+      // Update progress
+      videoPlayer.addEventListener('timeupdate', function() {
+        const currentTime = videoPlayer.currentTime;
+        const duration = videoPlayer.duration;
+        
+        // Update progress bar
+        if (duration) {
+          progress.style.width = `${(currentTime / duration) * 100}%`;
+        }
+        
+        // Update time display
+        currentTimeElement.textContent = formatTime(currentTime);
+        durationElement.textContent = formatTime(duration);
+      });
+      
+      // On video loaded
+      videoPlayer.addEventListener('loadedmetadata', function() {
+        durationElement.textContent = formatTime(videoPlayer.duration);
+      });
+      
+      // Format time (seconds to MM:SS)
+      function formatTime(seconds) {
+        const minutes = Math.floor(seconds / 60);
+        seconds = Math.floor(seconds % 60);
+        return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+      }
+    }
+  });
+</script>
+{% endblock %} 

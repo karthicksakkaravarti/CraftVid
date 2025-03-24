@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% load static i18n %}
+
+{% block title %}{% translate "Delete Workspace" %} - {{ object.name }}{% endblock %}
+
+{% block content %}
+<div class="container py-8 max-w-2xl mx-auto">
+  <div class="mb-6">
+    <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
+      <a href="{% url 'workspaces:list' %}" class="hover:text-blue-600">
+        {% translate "Workspaces" %}
+      </a>
+      <span>/</span>
+      <a href="{% url 'workspaces:detail' object.pk %}" class="hover:text-blue-600">
+        {{ object.name }}
+      </a>
+      <span>/</span>
+      <span>{% translate "Delete" %}</span>
+    </div>
+    <h1 class="text-3xl font-bold text-gray-900">{% translate "Delete Workspace" %}</h1>
+    <p class="text-gray-600 mt-1">
+      {% translate "Please confirm that you want to delete this workspace." %}
+    </p>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-8">
+    <div class="mb-6 p-4 border border-red-200 bg-red-50 rounded-lg text-red-800">
+      <div class="flex">
+        <div class="flex-shrink-0">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-red-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M12 8v4M12 16h.01"/>
+            <path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"/>
+          </svg>
+        </div>
+        <div class="ml-3">
+          <h3 class="text-sm font-medium text-red-800">{% translate "Warning" %}</h3>
+          <div class="mt-2 text-sm text-red-700">
+            <p>
+              {% translate "This action cannot be undone. This will permanently delete the workspace and all related projects, media files, and data." %}
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="p-4 border border-gray-200 rounded-lg mb-6">
+      <h3 class="font-medium text-gray-900 mb-2">{{ object.name }}</h3>
+      <p class="text-gray-600 text-sm mb-2">{{ object.description|default:"No description" }}</p>
+      <div class="flex flex-wrap gap-2">
+        <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">
+          {% if object.visibility == 'public' %}
+            {% translate "Public" %}
+          {% else %}
+            {% translate "Private" %}
+          {% endif %}
+        </span>
+        <span class="inline-flex items-center rounded-full bg-gray-100 px-2 py-1 text-xs font-medium text-gray-600">
+          {% translate "Created" %} {{ object.created_at|date:"M d, Y" }}
+        </span>
+        {% if object.screens.all.count > 0 %}
+        <span class="inline-flex items-center rounded-full bg-red-100 px-2 py-1 text-xs font-medium text-red-600">
+          {{ object.screens.all.count }} {% translate "projects will be deleted" %}
+        </span>
+        {% endif %}
+      </div>
+    </div>
+
+    <form method="post">
+      {% csrf_token %}
+      <div class="mb-6">
+        <label for="confirm" class="block text-sm font-medium text-gray-700 mb-2">
+          {% translate "Please type" %} <span class="font-semibold">{{ object.name }}</span> {% translate "to confirm" %}
+        </label>
+        <input 
+          type="text" 
+          id="confirm" 
+          name="confirm" 
+          class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+          placeholder="{{ object.name }}"
+          required
+        >
+      </div>
+
+      <div class="flex justify-end gap-3">
+        <a 
+          href="{% url 'workspaces:detail' object.pk %}" 
+          class="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 shadow-sm transition-colors"
+        >
+          {% translate "Cancel" %}
+        </a>
+        <button 
+          type="submit" 
+          class="inline-flex items-center justify-center rounded-lg px-4 py-2 text-sm font-medium bg-red-600 text-white hover:bg-red-700 shadow-sm transition-colors"
+        >
+          {% translate "Delete Workspace" %}
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %} 

@@ -1,0 +1,218 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}CraftVid - Create Professional Videos Effortlessly{% endblock title %}
+
+{% block css %}
+{{ block.super }}
+<style>
+  .gradient-text {
+    background: linear-gradient(45deg, #60A5FA, #A78BFA);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    font-weight: 700;
+  }
+
+  .feature-card {
+    background: linear-gradient(to bottom right, hsl(var(--card)) 0%, hsl(var(--background)) 100%);
+  }
+
+  .feature-icon {
+    background: linear-gradient(45deg, #60A5FA20, #A78BFA20);
+  }
+</style>
+{% endblock css %}
+
+{% block bodyclass %}bg-gray-900 text-white{% endblock bodyclass %}
+
+{% block content %}
+<div class="relative">
+  <!-- Hero Section -->
+  <section class="relative overflow-hidden">
+    <!-- Background Pattern -->
+    <div class="absolute inset-0 bg-grid-pattern opacity-10"></div>
+    <div class="absolute inset-0 bg-gradient-to-b from-background to-background/0"></div>
+
+    <!-- Content -->
+    <div class="container relative pt-24 pb-20 md:pt-32 md:pb-24">
+      <div class="flex flex-col items-center text-center">
+        <div class="inline-flex items-center rounded-2xl bg-primary/20 px-6 py-2.5 text-sm font-medium text-primary">
+          <span>✨ Introducing AI-Powered Video Creation</span>
+        </div>
+        <h1 class="mt-6 max-w-3xl text-4xl font-bold tracking-tight gradient-text sm:text-5xl md:text-6xl lg:text-7xl">
+          Craft Professional Videos with Ease
+        </h1>
+        <p class="mt-6 max-w-2xl text-lg text-foreground">
+          Transform your ideas into stunning videos using our powerful storyboarding and video editing tools. Perfect for creators, marketers, and storytellers.
+        </p>
+        <div class="mt-10 flex flex-wrap justify-center gap-4">
+          <a href="{% url 'account_signup' %}" class="btn-primary inline-flex h-12 items-center justify-center rounded-lg px-8 text-base font-medium">
+            Get Started Free
+          </a>
+          <a href="#features" class="btn-secondary inline-flex h-12 items-center justify-center rounded-lg px-8 text-base font-medium">
+            Learn More
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section id="features" class="relative overflow-hidden py-20 md:py-24">
+    <!-- Background Pattern -->
+    <div class="absolute inset-0 bg-dot-pattern opacity-10"></div>
+    <div class="absolute inset-0 bg-gradient-to-b from-background via-background/80 to-background"></div>
+
+    <!-- Content -->
+    <div class="container relative">
+      <div class="text-center">
+        <h2 class="text-3xl font-bold tracking-tight gradient-text sm:text-4xl md:text-5xl">
+          Everything You Need to Create Amazing Videos
+        </h2>
+        <p class="mt-4 text-lg text-foreground">
+          Our platform provides all the tools you need to create professional videos
+        </p>
+      </div>
+
+      <div class="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-3">
+        <!-- Feature Cards -->
+        <div class="group relative overflow-hidden rounded-2xl border bg-card p-8 transition-all hover:shadow-lg feature-card">
+          <div class="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100"></div>
+          <div class="relative">
+            <div class="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-lg feature-icon">
+              <svg class="h-6 w-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122"/>
+              </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-foreground">Smart Storyboarding</h3>
+            <p class="mt-2 text-muted-foreground">Create and organize your video scenes with our intuitive storyboarding tools.</p>
+          </div>
+        </div>
+
+        <!-- Feature 2 -->
+        <div class="group relative overflow-hidden rounded-2xl border bg-card p-8 transition-all hover:shadow-lg feature-card">
+          <div class="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100"></div>
+          <div class="relative">
+            <div class="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-lg feature-icon">
+              <svg class="h-6 w-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-foreground">AI-Powered Editing</h3>
+            <p class="mt-2 text-muted-foreground">Let our AI assist you in creating professional-looking videos in minutes.</p>
+          </div>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="group relative overflow-hidden rounded-2xl border bg-card p-8 transition-all hover:shadow-lg feature-card">
+          <div class="absolute inset-0 bg-gradient-to-br from-primary/20 via-transparent to-transparent opacity-0 transition-opacity group-hover:opacity-100"></div>
+          <div class="relative">
+            <div class="mb-6 inline-flex h-12 w-12 items-center justify-center rounded-lg feature-icon">
+              <svg class="h-6 w-6 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/>
+              </svg>
+            </div>
+            <h3 class="text-xl font-semibold text-foreground">Collaboration Tools</h3>
+            <p class="mt-2 text-muted-foreground">Work together with your team in real-time on video projects.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Testimonial Section -->
+  <section class="py-20 md:py-24">
+    <div class="container">
+      <div class="relative overflow-hidden rounded-2xl border bg-card">
+        <div class="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent"></div>
+        <div class="relative grid gap-6 p-8 md:grid-cols-[1fr,2px,1fr] md:p-12">
+          <div class="flex flex-col justify-center">
+            <blockquote class="space-y-2">
+              <p class="text-lg font-medium italic text-card-foreground">
+                "CraftVid has revolutionized our video creation process. What used to take days now takes hours, and the results are consistently amazing."
+              </p>
+              <footer>
+                <div class="mt-4">
+                  <p class="text-base font-semibold text-primary">Sarah Johnson</p>
+                  <p class="text-sm text-muted-foreground">Creative Director, DesignCo</p>
+                </div>
+              </footer>
+            </blockquote>
+          </div>
+          <div class="hidden md:block">
+            <div class="h-full w-[2px] bg-border"></div>
+          </div>
+          <div class="flex flex-col justify-center">
+            <div class="space-y-4">
+              <div class="flex items-center gap-2">
+                <svg class="h-5 w-5 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                </svg>
+                <svg class="h-5 w-5 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                </svg>
+                <svg class="h-5 w-5 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                </svg>
+                <svg class="h-5 w-5 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                </svg>
+                <svg class="h-5 w-5 text-primary" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z"/>
+                </svg>
+              </div>
+              <div class="space-y-2">
+                <p class="text-2xl font-bold">4.9/5</p>
+                <p class="text-sm text-muted-foreground">Average customer rating</p>
+              </div>
+              <div class="space-y-1">
+                <div class="flex items-center text-sm">
+                  <div class="w-20">Ease of Use</div>
+                  <div class="flex-1 px-4">
+                    <div class="h-2 w-[95%] rounded-full bg-primary"></div>
+                  </div>
+                </div>
+                <div class="flex items-center text-sm">
+                  <div class="w-20">Features</div>
+                  <div class="flex-1 px-4">
+                    <div class="h-2 w-[90%] rounded-full bg-primary"></div>
+                  </div>
+                </div>
+                <div class="flex items-center text-sm">
+                  <div class="w-20">Support</div>
+                  <div class="flex-1 px-4">
+                    <div class="h-2 w-[98%] rounded-full bg-primary"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA Section -->
+  <section class="relative overflow-hidden py-20 md:py-24">
+    <div class="absolute inset-0 bg-dot-pattern opacity-5"></div>
+    <div class="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-background"></div>
+    <div class="container relative">
+      <div class="mx-auto max-w-2xl text-center">
+        <h2 class="text-3xl font-bold tracking-tight gradient-text sm:text-4xl">
+          Ready to Create Amazing Videos?
+        </h2>
+        <p class="mt-4 text-lg text-foreground">
+          Join thousands of creators who are using CraftVid to bring their video ideas to life.
+        </p>
+        <div class="mt-8">
+          <a href="{% url 'account_signup' %}" class="btn-primary inline-flex h-12 items-center justify-center rounded-lg px-8 text-base font-medium">
+            Get Started Free
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock content %}
+
+
