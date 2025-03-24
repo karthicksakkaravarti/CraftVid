@@ -1152,8 +1152,29 @@ class ImageGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
             quality = request.POST.get('quality', 'standard')
             style = request.POST.get('style', 'vivid')
             
-            # Get the user's API key
+            # Get user's OpenAI API key
             api_key = request.user.openai_api_key
+            
+            # Check if image media already exists for this screen
+            try:
+                existing_image = Media.objects.filter(
+                    workspace=workspace,
+                    file_type='image',
+                    metadata__screen_id=str(screen.id)
+                )
+                # Delete the existing image files
+                for image in existing_image:
+                    if image.file:
+                        try:
+                            os.remove(os.path.join(settings.MEDIA_ROOT, image.file.name))
+                            logger.info(f"Deleted existing image file: {image.file.name}")
+                        except Exception as e:
+                            logger.warning(f"Error deleting existing image file: {str(e)}")
+                # Delete the media objects
+                existing_image.delete()
+                logger.info(f"Deleted existing image media object for screen {screen.id}")
+            except Media.DoesNotExist:
+                pass
             
             if not api_key:
                 # Update screen status to failed
@@ -1432,6 +1453,27 @@ class VoiceGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
             
             # Get user's ElevenLabs API key
             api_key = request.user.elevenlabs_api_key or settings.ELEVENLABS_API_KEY
+            
+            # Check if voice media already exists for this screen
+            try:
+                existing_voice = Media.objects.filter(
+                    workspace=workspace,
+                    file_type='audio',
+                    metadata__screen_id=str(screen.id)
+                )
+                # Delete the existing voice files
+                for voice in existing_voice:
+                    if voice.file:
+                        try:
+                            os.remove(os.path.join(settings.MEDIA_ROOT, voice.file.name))
+                            logger.info(f"Deleted existing voice file: {voice.file.name}")
+                        except Exception as e:
+                            logger.warning(f"Error deleting existing voice file: {str(e)}")
+                # Delete the media objects
+                existing_voice.delete()
+                logger.info(f"Deleted existing voice media object for screen {screen.id}")
+            except Media.DoesNotExist:
+                pass
             
             if not api_key:
                 # Update screen status to failed
@@ -1714,6 +1756,27 @@ class VideoGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
                 except Media.DoesNotExist:
                     pass
             
+            # Check if video media already exists for this screen
+            try:
+                existing_video = Media.objects.filter(
+                    workspace=workspace,
+                    file_type='video',
+                    metadata__screen_id=str(screen.id)
+                )
+                # Delete the existing video file
+                for video in existing_video:
+                    if video.file:
+                        try:
+                            os.remove(os.path.join(settings.MEDIA_ROOT, video.file.name))
+                            logger.info(f"Deleted existing video file: {video.file.name}")
+                        except Exception as e:
+                            logger.warning(f"Error deleting existing video file: {str(e)}")
+                # Delete the media object
+                existing_video.delete()
+                logger.info(f"Deleted existing video media object for screen {screen.id}")
+            except Media.DoesNotExist:
+                pass
+            
             # Generate the video
             from backend.video.services.ffmpeg_service import FFmpegService
             ffmpeg_service = FFmpegService()
@@ -1733,7 +1796,7 @@ class VideoGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
                     name=f"Video for {screen.name}",
                     file_type='video',
                     file=video_file,
-                    file_size=video_file.size,
+                    file_size=0,
                     metadata={
                         'screen_id': str(screen.id),
                         'script_id': str(screen.script.id) if screen.script else None,
@@ -1873,8 +1936,11 @@ class ScreenDetailView(LoginRequiredMixin, UserWorkspacePermissionMixin, View):
         # If script_id is provided, show all screens for that script
         if script_id:
             script = get_object_or_404(Script, id=script_id, workspace=workspace)
-            screens = Screen.objects.filter(script=script).order_by('scene')
-            
+            # screens = Screen.objects.filter(script=script).order_by('scene')
+            screens = sorted(
+            Screen.objects.filter(script=script),
+            key=lambda x: int(x.scene.split('_')[-1])
+            )
             context.update({
                 'script': script,
                 'screens': screens,
@@ -2028,15 +2094,21 @@ class BatchGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
             
             # Get the script
             script = get_object_or_404(Script, id=script_id, workspace=workspace)
-            
+            channel = script.channel
             # Get all screens for this script
-            screens = Screen.objects.filter(script=script)
-            
-            if not screens.exists():
-                return JsonResponse({
-                    'success': False,
-                    'error': _('No screens found for this script.')
-                }, status=400)
+            # screens = Screen.objects.filter(script=script).order_by('scene')
+            from django.db.models.expressions import RawSQL
+            from django.db.models.functions import Cast
+            from django.db.models import IntegerField
+            screens = Screen.objects.filter(script=script).annotate(
+                scene_number=RawSQL("CAST(regexp_replace(scene, '\\D', '', 'g') AS INTEGER)", [])
+            ).order_by('scene_number')
+            screens = list(screens)
+            # if not screens.exists():
+            #     return JsonResponse({
+            #         'success': False,
+            #         'error': _('No screens found for this script.')
+            #     }, status=400)
             
             # Get generation options from request
             generate_images = request.POST.get('generate_images') == 'true'
@@ -2238,12 +2310,27 @@ class BatchGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
                     
                     # Generate video (only if image and voice are available)
                     if generate_videos and screen.image and screen.voice:
-                        # Delete old video if it exists
-                        if screen.output_file:
-                            old_video = screen.output_file
-                            screen.output_file = None
-                            screen.save(update_fields=['output_file'])
-                            old_video.delete()
+                        # Delete old video file if it exists but keep the media object
+                        # Check if video media already exists for this screen
+                        try:
+                            existing_video = Media.objects.filter(
+                                workspace=workspace,
+                                file_type='video',
+                                metadata__screen_id=str(screen.id)
+                            )
+                            # Delete the existing video file
+                            for video in existing_video:
+                                if video.file:
+                                    try:
+                                        os.remove(os.path.join(settings.MEDIA_ROOT, video.file.name))
+                                        logger.info(f"Deleted existing video file: {video.file.name}")
+                                    except Exception as e:
+                                        logger.warning(f"Error deleting existing video file: {str(e)}")
+                            # Delete the media object
+                            existing_video.delete()
+                            logger.info(f"Deleted existing video media object for screen {screen.id}")
+                        except Media.DoesNotExist:
+                            pass
                         
                         # Update screen status
                         ScreenService.update_screen_status(
@@ -2293,7 +2380,6 @@ class BatchGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
                                 except Media.DoesNotExist:
                                     logger.warning(f"Background music with ID {background_music_id} not found")
                                     background_music = None
-                            
                             # Generate the video
                             from backend.video.services.ffmpeg_service import FFmpegService
                             ffmpeg_service = FFmpegService()
@@ -2304,7 +2390,8 @@ class BatchGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
                             video_file = ffmpeg_service.generate_video(
                                 image_path=screen.image.file.path,
                                 audio_path=screen.voice.file.path,
-                                background_music_path=background_music.file.path if background_music else None,
+                                # background_music_path=background_music.file.path if background_music else None,
+                                background_music_path='backend/backend/media/background.mp3',
                                 quality=video_quality
                             )
                             
@@ -2316,7 +2403,7 @@ class BatchGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
                                 name=f"Video for {screen.name}",
                                 file_type='video',
                                 file=video_file,
-                                file_size=23,
+                                file_size=os.path.getsize(os.path.join(settings.MEDIA_ROOT, video_file)),
                                 metadata={
                                     'screen_id': str(screen.id),
                                     'script_id': str(screen.script.id) if screen.script else None,
@@ -2329,7 +2416,6 @@ class BatchGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
                                 },
                                 uploaded_by=request.user
                             )
-                            
                             # Update screen with video
                             screen.output_file = video_file
                             screen.save(update_fields=['output_file'])
@@ -2351,7 +2437,7 @@ class BatchGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
                     processed_screens += 1
                 except Exception as e:
                     errors.append(f"Error processing screen '{screen.name}': {str(e)}")
-            
+
             # Compile all videos into a single final video if videos were generated
             final_video_path = None
             if generate_videos and processed_screens > 0:
@@ -2373,11 +2459,11 @@ class BatchGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
                     
                     if scenes_data:
                         # Delete old final video if it exists
-                        if script.output_file:
-                            old_final_video = script.output_file
-                            script.output_file = None
-                            script.save(update_fields=['output_file'])
-                            old_final_video.delete()
+                        # if script.output_file:
+                        #     old_final_video = script.output_file
+                        #     script.output_file = None
+                        #     script.save(update_fields=['output_file'])
+                        #     old_final_video.delete()
                         
                         # Generate a unique output name
                         output_name = f"final_{script.title.replace(' ', '_')}_{uuid.uuid4()}.mp4"
@@ -2388,8 +2474,18 @@ class BatchGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
                             workspace_id=str(workspace.id),
                             output_name=output_name,
                             quality=video_quality,
-                            background_music=background_music.file.path if background_music else None
+                            background_music='backend/backend/media/background.mp3',
+                            channel=channel
                         )
+                        
+                        # Delete old final video file if it exists but keep the media object
+                        if script.output_file:
+                            try:
+                                if os.path.exists(script.output_file.file.path):
+                                    os.remove(script.output_file.file.path)
+                                    logger.info(f"Deleted existing final video file: {script.output_file.file.path}")
+                            except Exception as e:
+                                logger.warning(f"Error deleting existing final video file: {str(e)}")
                         
                         # Create a Media object for the final video
                         final_media = Media.objects.create(

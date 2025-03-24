@@ -199,17 +199,17 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {% for screen in workspace.screens.all %}
-            {% if screen.output_file %}
+          {% for script in workspace.scripts.all %}
+            {% if script.output_file %}
               <div class="bg-gray-50 rounded-lg overflow-hidden">
                 <div class="aspect-w-16 aspect-h-9">
                   <video class="w-full h-full object-cover" controls poster="{% static 'images/video-placeholder.jpg' %}">
-                    <source src="{{ screen.output_file.url }}" type="video/mp4">
+                    <source src="{{ script.output_file.url }}" type="video/mp4">
                   </video>
                 </div>
                 <div class="p-4">
-                  <h3 class="font-medium text-gray-900">{{ screen.name }}</h3>
-                  <p class="text-sm text-gray-500 mt-1">{{ screen.created_at|date:"M d, Y" }}</p>
+                  <h3 class="font-medium text-gray-900">{{ script.title }}</h3>
+                  <p class="text-sm text-gray-500 mt-1">{{ script.created_at|date:"M d, Y" }}</p>
                   <div class="flex justify-between items-center mt-3">
                     <span class="inline-flex items-center rounded-full bg-green-100 px-2.5 py-0.5 text-xs font-medium text-green-800">
                       {% translate "Completed" %}

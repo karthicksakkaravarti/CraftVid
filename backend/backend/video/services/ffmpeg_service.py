@@ -22,6 +22,8 @@ from moviepy.video.fx import (
     Resize, FadeIn, FadeOut, MirrorX, MirrorY, Rotate,
      Crop, Loop, Margin, MaskColor, TimeMirror
 )
+from moviepy.audio.fx import MultiplyVolume
+
 # from moviepy.video.fx.fadein import fadein
 # from moviepy.video.fx.fadeout import fadeout
 
@@ -286,7 +288,7 @@ class FFmpegService:
         quality: str = 'medium',
         add_watermark: bool = False,
         background_music: str = None,
-        channel_logo_url: str = None
+        channel: str = None
     ) -> str:
         """
         Compile a video from multiple scenes.
@@ -298,7 +300,7 @@ class FFmpegService:
             quality: Quality preset (low, medium, high, ultra)
             add_watermark: Whether to add a watermark
             background_music: Path to background music file
-            channel_logo_url: URL to the channel logo to use as watermark
+            channel: channel object
             
         Returns:
             Path to the compiled video file
@@ -341,31 +343,15 @@ class FFmpegService:
             watermark_path = None
             
             # First priority: Use channel logo if provided
-            if channel_logo_url:
+            if channel:
                 try:
-                    # Download the channel logo if it's a URL
-                    if channel_logo_url.startswith(('http://', 'https://')):
-                        # Create a temporary file for the logo
-                        temp_logo_path = os.path.join(settings.MEDIA_ROOT, 'temp', f"channel_logo_{uuid.uuid4()}.png")
-                        os.makedirs(os.path.dirname(temp_logo_path), exist_ok=True)
-                        
-                        # Download the logo
-                        import requests
-                        response = requests.get(channel_logo_url)
-                        if response.status_code == 200:
-                            with open(temp_logo_path, 'wb') as f:
-                                f.write(response.content)
-                            watermark_path = temp_logo_path
-                    else:
-                        # If it's a local path, use it directly
-                        if os.path.exists(channel_logo_url):
-                            watermark_path = channel_logo_url
+                    watermark_path = channel.logo.path
                 except Exception as e:
                     logger.warning(f"Error downloading channel logo: {str(e)}")
             
             # Second priority: Use default watermark if requested
-            if not watermark_path and add_watermark and hasattr(settings, 'WATERMARK_PATH') and os.path.exists(settings.WATERMARK_PATH):
-                watermark_path = settings.WATERMARK_PATH
+            # if not watermark_path and add_watermark and hasattr(settings, 'WATERMARK_PATH') and os.path.exists(settings.WATERMARK_PATH):
+            #     watermark_path = settings.WATERMARK_PATH
             
             # Apply watermark if we have a valid path
             if watermark_path:
@@ -376,12 +362,21 @@ class FFmpegService:
                     video_width = final_video.w
                     watermark_width = int(video_width * 0.15)  # 15% of video width
                     
-                    # Use resize function for watermark
-                    watermark_clip = Resize(watermark_clip, width=watermark_width)
+                    # Get original dimensions before resizing
+                    original_w, original_h = watermark_clip.size
+                    
+                    # Calculate new height maintaining aspect ratio
+                    aspect_ratio = original_h / original_w
+                    watermark_height = int(watermark_width * aspect_ratio)
+                    
+                    # Resize the watermark using the correct method
+                    watermark_clip = watermark_clip.resized(width=watermark_width, height=watermark_height)
                     
                     # Position watermark in bottom right with padding
                     padding = 20  # Padding from video edges
                     video_h = final_video.h
+                    
+                    # Get dimensions after resizing
                     mark_w, mark_h = watermark_clip.size
                     position = (video_width - mark_w - padding, video_h - mark_h - padding)
                     
@@ -397,7 +392,7 @@ class FFmpegService:
                     if watermark_path.startswith(os.path.join(settings.MEDIA_ROOT, 'temp')):
                         try:
                             os.remove(watermark_path)
-                        except:
+                        except Exception:
                             pass
                 except Exception as e:
                     logger.warning(f"Error adding watermark: {str(e)}")
@@ -409,25 +404,21 @@ class FFmpegService:
                     # Load background music
                     bg_music = AudioFileClip(background_music)
                     
-                    # Loop if needed
+                    # Loop background music if it's shorter than the video
                     if bg_music.duration < final_video.duration:
-                        # Calculate how many loops we need
-                        num_loops = int(final_video.duration / bg_music.duration) + 1
-                        
-                        # Create a list of the same audio clip
-                        bg_clips = [bg_music] * num_loops
-                        
-                        # Concatenate and trim
-                        bg_music = concatenate_audioclips(bg_clips)
-                        bg_music = bg_music.subclip(0, final_video.duration)
-                    else:
-                        # Trim to match video duration
-                        bg_music = bg_music.subclip(0, final_video.duration)
+                        # Calculate how many loops needed
+                        loops_needed = math.ceil(final_video.duration / bg_music.duration)
+                        bg_music = concatenate_audioclips([bg_music] * loops_needed)
                     
-                    # Lower volume of background music (using volumex in v2)
-                    bg_music = bg_music.volumex(0.3)
+                    # Trim background music if it's longer than the video
+                    if bg_music.duration > final_video.duration:
+                        # Create a new audio clip with the desired duration
+                        bg_music = bg_music.with_duration(final_video.duration)
                     
-                    # Combine with existing audio if any
+                    # Reduce background music volume (using set_volume instead of volumex)
+                    bg_music = bg_music.with_effects([MultiplyVolume(0.2)])
+                    
+                    # Mix audio tracks
                     if final_video.audio:
                         final_audio = CompositeAudioClip([final_video.audio, bg_music])
                         final_video = final_video.with_audio(final_audio)
@@ -952,25 +943,27 @@ class FFmpegService:
             video_clip = image_clip.with_audio(audio_clip)
             
             # Add background music if provided
-            if background_music_path and os.path.exists(background_music_path):
-                # Load background music
-                bg_music = AudioFileClip(background_music_path)
+            # if background_music_path and os.path.exists(background_music_path):
+            #     # Load background music
+            #     bg_music = AudioFileClip(background_music_path)
                 
-                # Loop background music if it's shorter than the video
-                if bg_music.duration < video_clip.duration:
-                    # Calculate how many loops needed
-                    loops_needed = math.ceil(video_clip.duration / bg_music.duration)
-                    bg_music = concatenate_audioclips([bg_music] * loops_needed)
+            #     # Loop background music if it's shorter than the video
+            #     if bg_music.duration < video_clip.duration:
+            #         # Calculate how many loops needed
+            #         loops_needed = math.ceil(video_clip.duration / bg_music.duration)
+            #         bg_music = concatenate_audioclips([bg_music] * loops_needed)
                 
-                # Trim background music if it's longer than the video
-                bg_music = bg_music.subclip(0, video_clip.duration)
+            #     # Trim background music if it's longer than the video
+            #     if bg_music.duration > video_clip.duration:
+            #         # Create a new audio clip with the desired duration
+            #         bg_music = bg_music.with_duration(video_clip.duration)
                 
-                # Reduce background music volume
-                bg_music = bg_music.volumex(0.3)
+            #     # Reduce background music volume (using set_volume instead of volumex)
+            #     bg_music = bg_music.with_effects([MultiplyVolume(0.2)])
                 
-                # Mix audio tracks
-                final_audio = CompositeAudioClip([video_clip.audio, bg_music])
-                video_clip = video_clip.set_audio(final_audio)
+            #     # Mix audio tracks
+            #     final_audio = CompositeAudioClip([video_clip.audio, bg_music])
+            #     video_clip = video_clip.with_audio(final_audio)
             
             # Apply Ken Burns effect for some movement
             video_clip = self._apply_ken_burns_effect(video_clip)

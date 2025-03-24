@@ -203,7 +203,7 @@ class Screen(models.Model):
         blank=True
     )
     
-    output_file = models.FileField(upload_to='screens/', null=True, blank=True)
+    output_file = models.FileField(upload_to='screens/', null=True, blank=True, max_length=500)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     error_message = models.TextField(null=True, blank=True)
@@ -404,7 +404,7 @@ class Script(models.Model):
 
     # Metadata from generation
     metadata = models.JSONField(_('Metadata'), default=dict, blank=True)
-    output_file = models.FileField(upload_to='scripts/', null=True, blank=True)
+    output_file = models.FileField(upload_to='scripts/', null=True, blank=True, max_length=500)
     # Tracking fields
     created_by = models.ForeignKey(
         settings.AUTH_USER_MODEL,

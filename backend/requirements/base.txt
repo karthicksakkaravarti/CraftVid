@@ -25,6 +25,7 @@ drf-spectacular==0.28.0  # https://github.com/tfranzel/drf-spectacular
 crispy-tailwind==1.0.3
 Pyjwt
 drf-nested-routers
+opencv-python
 
 # AI and Media Processing
 # ------------------------------------------------------------------------------
