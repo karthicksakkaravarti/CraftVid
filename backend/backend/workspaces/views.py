@@ -1873,7 +1873,7 @@ class ScreenDetailView(LoginRequiredMixin, UserWorkspacePermissionMixin, View):
         # If script_id is provided, show all screens for that script
         if script_id:
             script = get_object_or_404(Script, id=script_id, workspace=workspace)
-            screens = Screen.objects.filter(script=script).order_by('name')
+            screens = Screen.objects.filter(script=script).order_by('scene')
             
             context.update({
                 'script': script,

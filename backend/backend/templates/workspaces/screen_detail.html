@@ -219,9 +219,9 @@
             
             <!-- Scene data preview -->
             <div class="mb-3">
-              {% if screen.scene_data.visual %}
-                <p class="text-sm text-gray-600 line-clamp-2">{{ screen.scene_data.visual }}</p>
-              {% elif screen.scene_data.narrator %}
+              {% comment %} {% if screen.scene_data.visual %}
+                <p class="text-sm text-gray-600 line-clamp-2">{{ screen.scene_data.visual }}</p> {% endcomment %}
+              {% if screen.scene_data.narrator %}
                 <p class="text-sm text-gray-600 line-clamp-2">{{ screen.scene_data.narrator }}</p>
               {% else %}
                 <p class="text-sm text-gray-500 italic">{% translate "No scene data available" %}</p>
