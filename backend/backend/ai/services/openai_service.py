@@ -87,7 +87,7 @@ class OpenAIService:
             Additional instructions: {additional_instructions}
             """
         
-        print("prompt", prompt)
+        print("OpenAI prompt", prompt)
         try:
             # Call OpenAI API with new client syntax
             response = self.client.chat.completions.create(

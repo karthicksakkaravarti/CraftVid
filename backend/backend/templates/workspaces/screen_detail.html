@@ -362,14 +362,19 @@
                 {% endif %}
               </span>
             </div>
-            <button id="generateImageBtn" class="btn-primary-sm w-full mt-2" 
-              {% if screen.status_data.images.status == 'processing' %}disabled{% endif %}>
-              {% if screen.status_data.images.status == 'completed' %}
-                {% translate "Regenerate Image" %}
-              {% else %}
-                {% translate "Generate Image" %}
-              {% endif %}
-            </button>
+            <div class="flex space-x-2 mt-2">
+              <button id="generateImageBtn" class="btn-primary-sm flex-1" 
+                {% if screen.status_data.images.status == 'processing' %}disabled{% endif %}>
+                {% if screen.status_data.images.status == 'completed' %}
+                  {% translate "Regenerate Image" %}
+                {% else %}
+                  {% translate "Generate Image" %}
+                {% endif %}
+              </button>
+              <button id="selectExistingImageBtn" class="btn-outline-sm flex-1">
+                {% translate "Select Existing" %}
+              </button>
+            </div>
           </div>
           
           <!-- Voice status -->
@@ -576,10 +581,34 @@
 
 <!-- Loading overlay -->
 <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
-<div class="bg-white p-6 rounded-lg shadow-lg text-center">
-  <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-  <p id="loadingMessage" class="text-lg font-medium">{% translate "Processing..." %}</p>
+  <div class="bg-white p-6 rounded-lg shadow-lg text-center">
+    <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+    <p id="loadingMessage" class="text-lg font-medium">{% translate "Processing..." %}</p>
+  </div>
 </div>
+
+<!-- Image Selection Modal -->
+<div id="imageSelectionModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+  <div class="bg-white rounded-lg shadow-lg p-6 max-w-4xl w-full mx-4">
+    <div class="flex justify-between items-center mb-4">
+      <h2 class="text-xl font-bold">{% translate "Select Existing Image" %}</h2>
+      <button id="closeImageModalBtn" class="text-gray-500 hover:text-gray-700">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+        </svg>
+      </button>
+    </div>
+    
+    <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6" id="imageGrid">
+      <!-- Images will be loaded here dynamically -->
+    </div>
+    
+    
+    <div class="flex justify-end">
+      <button id="cancelImageSelectionBtn" class="btn-outline mr-2">{% translate "Cancel" %}</button>
+      <button id="confirmImageSelectionBtn" class="btn-primary" disabled>{% translate "Select Image" %}</button>
+    </div>
+  </div>
 </div>
 
 <!-- Toast notifications -->
@@ -926,6 +955,140 @@ document.addEventListener('DOMContentLoaded', function() {
       setTimeout(() => {
         toast.classList.add('hidden');
       }, 5000);
+    });
+  });
+  
+  // Image selection modal
+  const imageSelectionModal = document.getElementById('imageSelectionModal');
+  const selectExistingImageBtn = document.getElementById('selectExistingImageBtn');
+  const closeImageModalBtn = document.getElementById('closeImageModalBtn');
+  const cancelImageSelectionBtn = document.getElementById('cancelImageSelectionBtn');
+  const confirmImageSelectionBtn = document.getElementById('confirmImageSelectionBtn');
+  const imageGrid = document.getElementById('imageGrid');
+  let selectedImageId = null;
+  
+  // Show modal
+  selectExistingImageBtn.addEventListener('click', function() {
+    // Show loading overlay
+    loadingMessage.textContent = '{% translate "Loading images..." %}';
+    loadingOverlay.classList.remove('hidden');
+    
+    // Fetch workspace images
+    fetch(`/workspaces/api/workspaces/${workspaceId}/media/`, {
+      headers: {
+        'X-CSRFToken': csrfToken,
+        'Accept': 'application/json'
+      }
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    })
+    .then(data => {
+      // Clear existing images
+      imageGrid.innerHTML = '';
+      
+      // Add images to grid
+      data.results.forEach(media => {
+        if (media.file_type === 'image') {
+          const imageCard = document.createElement('div');
+          imageCard.className = 'relative cursor-pointer border-2 border-transparent hover:border-blue-500 rounded-lg overflow-hidden';
+          imageCard.innerHTML = `
+            <img src="${media.file}" alt="${media.name}" class="w-full h-48 object-cover">
+            <div class="absolute inset-0 bg-black bg-opacity-0 hover:bg-opacity-20 transition-opacity"></div>
+          `;
+          
+          imageCard.addEventListener('click', function() {
+            // Remove selection from other cards
+            document.querySelectorAll('.border-blue-500').forEach(card => {
+              card.classList.remove('border-blue-500');
+            });
+            
+            // Add selection to this card
+            this.classList.add('border-blue-500');
+            selectedImageId = media.id;
+            confirmImageSelectionBtn.disabled = false;
+          });
+          
+          imageGrid.appendChild(imageCard);
+        }
+      });
+      
+      // Show modal
+      imageSelectionModal.classList.remove('hidden');
+    })
+    .catch(error => {
+      // Show error toast
+      toastIcon.innerHTML = '<svg class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+      toastMessage.textContent = '{% translate "Error loading images. Please try again." %}';
+      toast.classList.remove('hidden');
+    })
+    .finally(() => {
+      // Hide loading overlay
+      loadingOverlay.classList.add('hidden');
+    });
+  });
+  
+  // Close modal
+  function closeImageModal() {
+    imageSelectionModal.classList.add('hidden');
+    selectedImageId = null;
+    confirmImageSelectionBtn.disabled = true;
+  }
+  
+  closeImageModalBtn.addEventListener('click', closeImageModal);
+  cancelImageSelectionBtn.addEventListener('click', closeImageModal);
+  
+  // Confirm image selection
+  confirmImageSelectionBtn.addEventListener('click', function() {
+    if (!selectedImageId) return;
+    
+    // Show loading overlay
+    loadingMessage.textContent = '{% translate "Linking image..." %}';
+    loadingOverlay.classList.remove('hidden');
+    
+    // Link the image
+    fetch(`/workspaces/api/workspaces/${workspaceId}/screens/${screenId}/link-media/`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        media_id: selectedImageId,
+        media_type: 'image'
+      })
+    })
+    .then(response => {
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      return response.json();
+    })
+    .then(data => {
+      // Show success toast
+      toastIcon.innerHTML = '<svg class="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+      toastMessage.textContent = data.message || '{% translate "Image linked successfully" %}';
+      toast.classList.remove('hidden');
+      
+      // Close modal
+      closeImageModal();
+      
+      // Reload page to show updated image
+      window.location.reload();
+    })
+    .catch(error => {
+      // Show error toast
+      toastIcon.innerHTML = '<svg class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+      toastMessage.textContent = '{% translate "Error linking image. Please try again." %}';
+      toast.classList.remove('hidden');
+    })
+    .finally(() => {
+      // Hide loading overlay
+      loadingOverlay.classList.add('hidden');
     });
   });
   {% endif %}

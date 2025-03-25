@@ -22,6 +22,7 @@ from backend.workspaces.serializers import (
     ScriptSerializer,
     ChannelSerializer
 )
+from rest_framework import filters
 from backend.workspaces.schemas import (
     LIST_WORKSPACE_200,
     CREATE_WORKSPACE_REQUEST,
@@ -609,6 +610,7 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
 class MediaViewSet(viewsets.ModelViewSet):
     queryset = Media.objects.all()
     serializer_class = MediaSerializer
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = (parsers.MultiPartParser, parsers.FormParser)
 
@@ -679,9 +681,9 @@ class MediaViewSet(viewsets.ModelViewSet):
         if workspace_id:
             return Media.objects.filter(
                 workspace_id=workspace_id,
-                workspace__members=self.request.user
+                # workspace__members=self.request.user
             )
-        return Media.objects.filter(workspace__members=self.request.user)
+        return Media.objects.filter()
 
 class ScriptViewSet(viewsets.ModelViewSet):
     serializer_class = ScriptSerializer
@@ -698,6 +700,71 @@ class ScreenViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         serializer.save(workspace_id=self.kwargs['workspace_pk'])
+
+    @action(detail=True, methods=['post'])
+    def link_media(self, request, pk=None, workspace_pk=None):
+        """Link media to a screen."""
+        screen = self.get_object()
+        media_id = request.data.get('media_id')
+        media_type = request.data.get('media_type')
+        
+        if not media_id or not media_type:
+            return Response(
+                {'error': 'media_id and media_type are required'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        try:
+            # Get the media object
+            media = Media.objects.get(id=media_id, workspace_id=workspace_pk)
+            
+            # Verify media type matches
+            if media_type == 'image' and media.file_type != 'image':
+                return Response(
+                    {'error': 'Invalid media type. Expected image.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            elif media_type == 'voice' and media.file_type != 'voice':
+                return Response(
+                    {'error': 'Invalid media type. Expected voice.'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Link the media to the screen
+            if media_type == 'image':
+                screen.image = media
+                screen.save(update_fields=['image'])
+                # Update screen status
+                ScreenService.update_screen_status(
+                    screen_id=str(screen.id),
+                    component='images',
+                    status='completed'
+                )
+            elif media_type == 'voice':
+                screen.voice = media
+                screen.save(update_fields=['voice'])
+                # Update screen status
+                ScreenService.update_screen_status(
+                    screen_id=str(screen.id),
+                    component='voices',
+                    status='completed'
+                )
+            
+            return Response({
+                'success': True,
+                'message': f'{media_type.capitalize()} linked successfully'
+            })
+            
+        except Media.DoesNotExist:
+            return Response(
+                {'error': 'Media not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+        except Exception as e:
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=True, methods=['post'])
     def generate_preview(self, request, pk=None, workspace_pk=None):

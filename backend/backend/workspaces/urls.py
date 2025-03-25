@@ -46,6 +46,9 @@ workspace_router.register(r'scripts', ScriptViewSet, basename='workspace-scripts
 api_urlpatterns = [
     path('api/', include(router.urls)),
     path('api/', include(workspace_router.urls)),
+    path('workspaces/<uuid:workspace_pk>/screens/<int:pk>/link-media/', 
+         ScreenViewSet.as_view({'post': 'link_media'}), 
+         name='screen-link-media'),
 ]
 
 # URL patterns for the Web UI
