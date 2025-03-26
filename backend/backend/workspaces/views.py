@@ -692,6 +692,24 @@ class ScriptViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         return Script.objects.filter(workspace_id=self.kwargs['workspace_pk'])
     
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context['workspace_pk'] = self.kwargs.get('workspace_pk')
+        return context
+    
+    @action(detail=False, methods=['get'], url_path='list-all')
+    def list_all(self, request, workspace_pk=None):
+        """Get all scripts in a workspace for the dropdown selector."""
+        scripts = Script.objects.filter(workspace_id=workspace_pk)
+        data = [{
+            'id': str(script.id),
+            'title': script.title,
+            'status': script.status,
+            'version': script.version,
+            'created_at': script.created_at
+        } for script in scripts]
+        return Response(data)
+    
     
 class ScreenViewSet(viewsets.ModelViewSet):
     serializer_class = ScreenSerializer
@@ -1102,32 +1120,60 @@ class ScriptFinalizeView(LoginRequiredMixin, UserWorkspacePermissionMixin, View)
     """View for finalizing a script."""
     
     def post(self, request, workspace_id, script_id):
-        """Finalize a script."""
+        """Handle POST request to finalize a script."""
         try:
-            # Check if user has access to the workspace
-            workspace = get_object_or_404(
-                Workspace.objects.filter(
-                    Q(owner=request.user) | Q(members=request.user)
-                ),
-                id=workspace_id
-            )
+            # Get workspace
+            workspace = get_object_or_404(Workspace, id=workspace_id)
             
             # Get the script
             script = get_object_or_404(Script, id=script_id, workspace=workspace)
             
+            # Get source script if provided
+            if request.content_type == 'application/json':
+                data = json.loads(request.body)
+                source_script_id = data.get('source_script_id')
+                import_images = data.get('import_images', False)
+                import_voices = data.get('import_voices', False)
+            else:
+                # Support legacy form data
+                source_script_id = None
+                import_images = False
+                import_voices = False
+            
             # Finalize the script
             script.finalize()
             
-            # Create screens for the finalized script
+            # Import logic for ScreenService
             from backend.workspaces.services.screen_service import ScreenService
+            
+            # Create screens for the finalized script
             screens = ScreenService.create_screen_from_script(
                 script_id=str(script.id),
                 name=f"Screen for {script.title}"
             )
             
-            # Return JSON response with screen information
+            if source_script_id and (import_images or import_voices):
+                try:
+                    source_script = Script.objects.get(id=source_script_id, workspace=workspace)
+                    source_screens = Screen.objects.filter(script=source_script).order_by('scene')
+                    
+                    # Map scene numbers to reuse assets
+                    for new_screen, source_screen in zip(screens, source_screens):
+                        if import_images and source_screen.image:
+                            new_screen.image = source_screen.image
+                            new_screen.status_data['images'] = source_screen.status_data.get('images', {})
+                        if import_voices and source_screen.voice:
+                            new_screen.voice = source_screen.voice
+                            new_screen.status_data['voices'] = source_screen.status_data.get('voices', {})
+                        new_screen.save()
+                        
+                except Script.DoesNotExist:
+                    return JsonResponse({
+                        'success': False,
+                        'error': _('Source script not found')
+                    }, status=404)
+            
             if screens:
-                # If screens were created, redirect to the first screen
                 return JsonResponse({
                     'success': True,
                     'message': _('Script finalized successfully'),
@@ -1139,7 +1185,6 @@ class ScriptFinalizeView(LoginRequiredMixin, UserWorkspacePermissionMixin, View)
                     })
                 })
             else:
-                # If no screens were created, redirect to the script management page
                 return JsonResponse({
                     'success': True,
                     'message': _('Script finalized successfully, but no screens were created'),
@@ -1149,20 +1194,17 @@ class ScriptFinalizeView(LoginRequiredMixin, UserWorkspacePermissionMixin, View)
                     })
                 })
                 
-        except Exception as e:
-            # Log the error with traceback
-            import traceback
-            logger.error(
-                f"Error finalizing script: {str(e)}\n"
-                f"Traceback:\n{''.join(traceback.format_tb(e.__traceback__))}"
-            )
-            
-            # Return error response with line number
-            tb = traceback.extract_tb(e.__traceback__)
-            error_line = tb[-1].lineno if tb else 'unknown'
+        except json.JSONDecodeError:
             return JsonResponse({
                 'success': False,
-                'error': f"Error on line {error_line}: {str(e)}"
+                'error': _('Invalid JSON data')
+            }, status=400)
+        except Exception as e:
+            import traceback
+            logger.error(f"Error finalizing script: {str(e)}\n{traceback.format_exc()}")
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
             }, status=500)
 
 
@@ -2578,8 +2620,9 @@ class BatchGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
                         
                         logger.info(f"Final video compiled successfully: {final_video_path}")
                 except Exception as e:
-                    logger.error(f"Error compiling final video: {str(e)}")
-                    errors.append(f"Error compiling final video: {str(e)}")
+                    import traceback
+                    logger.error(f"Error compiling final video: {str(e)}", traceback.format_exc())
+                    errors.append(f"Error compiling final video: {str(e)}", traceback.format_exc())
             
             # Return response
             if processed_screens > 0:

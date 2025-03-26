@@ -573,6 +573,58 @@
     {% endif %}
   </div>
 </div>
+
+<!-- Add modal for asset selection -->
+<div id="assetSelectionModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden" style="z-index: 100;">
+  <div class="relative p-4 w-full max-w-2xl mx-auto h-full md:h-auto">
+    <div class="relative bg-white rounded-lg shadow">
+      <!-- Modal header -->
+      <div class="flex justify-between items-center p-4 rounded-t border-b">
+        <h3 class="text-xl font-semibold text-gray-900">
+          {% translate "Select Assets to Import" %}
+        </h3>
+        <button type="button" class="text-gray-400 bg-transparent hover:bg-gray-200 hover:text-gray-900 rounded-lg text-sm p-1.5 ml-auto inline-flex items-center" onclick="closeAssetModal()">
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+        </button>
+      </div>
+      <!-- Modal body -->
+      <div class="p-6 space-y-6">
+        <div class="mb-4">
+          <label class="block text-gray-700 text-sm font-bold mb-2" for="sourceScript">
+            {% translate "Source Script" %}
+          </label>
+          <select id="sourceScript" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            <option value="">{% translate "Select a script" %}</option>
+          </select>
+        </div>
+        <div class="space-y-4">
+          <div class="flex items-center">
+            <input id="importImages" type="checkbox" class="w-4 h-4 text-blue-600 bg-gray-100 rounded border-gray-300 focus:ring-blue-500">
+            <label for="importImages" class="ml-2 text-sm font-medium text-gray-900">
+              {% translate "Import Images" %}
+            </label>
+          </div>
+          <div class="flex items-center">
+            <input id="importVoices" type="checkbox" class="w-4 h-4 text-blue-600 bg-gray-100 rounded border-gray-300 focus:ring-blue-500">
+            <label for="importVoices" class="ml-2 text-sm font-medium text-gray-900">
+              {% translate "Import Voice-overs" %}
+            </label>
+          </div>
+        </div>
+      </div>
+      <!-- Modal footer -->
+      <div class="flex items-center p-6 space-x-2 rounded-b border-t border-gray-200">
+        <button type="button" class="text-white bg-blue-700 hover:bg-blue-800 focus:ring-4 focus:outline-none focus:ring-blue-300 font-medium rounded-lg text-sm px-5 py-2.5 text-center" onclick="finalizeWithAssets()">
+          {% translate "Finalize" %}
+        </button>
+        <button type="button" class="text-gray-500 bg-white hover:bg-gray-100 focus:ring-4 focus:outline-none focus:ring-blue-300 rounded-lg border border-gray-200 text-sm font-medium px-5 py-2.5 hover:text-gray-900 focus:z-10" onclick="closeAssetModal()">
+          {% translate "Cancel" %}
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
 {% endblock content %}
 
 {% block extra_js %}
@@ -591,8 +643,12 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.7.0/languages/json.min.js"></script>
 
 <script>
+    // Add workspace and script IDs to the global scope
+    const workspaceId = '{{ workspace.id }}';
+    const currentScriptId = '{{ script.id }}';
+    
     console.log('Script Management page loaded');
-  document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function() {
     const scriptContent = document.getElementById('scriptContent');
     const scriptEditContainer = document.getElementById('scriptEditContainer');
     const editBtn = document.getElementById('editBtn');
@@ -1003,54 +1059,6 @@
       }
     });
     
-    // Finalize script
-    if (finalizeBtn) {
-      finalizeBtn.addEventListener('click', function() {
-        // If currently editing, save first
-        if (isEditing) {
-          if (codeMirrorEditor.getValue() !== lastSavedContent) {
-            if (!confirm('{% translate "You have unsaved changes. Save before finalizing?" %}')) {
-              return;
-            }
-            autoSave();
-          }
-        }
-        
-        if (confirm('{% translate "Finalize this script? This will mark it as the final version." %}')) {
-          // Show loading state
-          finalizeBtn.disabled = true;
-          finalizeBtn.innerHTML = '{% translate "Finalizing..." %}';
-          
-          // Send finalize request
-          fetch('{% url "workspaces:script_finalize" workspace.id script.id %}', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded',
-              'X-CSRFToken': '{{ csrf_token }}'
-            }
-          })
-          .then(response => response.json())
-          .then(data => {
-            if (data.success) {
-              // Reload the page to show updated status
-              window.location.reload();
-            } else {
-              alert('Error: ' + data.error);
-            }
-          })
-          .catch(error => {
-            console.error('Error:', error);
-            alert('An error occurred while finalizing the script.');
-          })
-          .finally(() => {
-            // Reset button state
-            finalizeBtn.disabled = false;
-            finalizeBtn.innerHTML = '{% translate "Finalize Script" %}';
-          });
-        }
-      });
-    }
-    
     // Add keyboard shortcuts
     document.addEventListener('keydown', function(e) {
       // Ctrl+E or Cmd+E to toggle edit mode
@@ -1137,6 +1145,112 @@
       }
       return cookieValue;
     }
+
+    function showAssetModal() {
+      // Fetch available scripts in the workspace
+      fetch(`/workspaces/api/workspaces/${workspaceId}/scripts/list-all/`)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error('Failed to fetch scripts');
+          }
+          return response.json();
+        })
+        .then(data => {
+          const select = document.getElementById('sourceScript');
+          select.innerHTML = '<option value="">{% translate "Select a script" %}</option>';
+          
+          data.forEach(script => {
+            if (script.id !== currentScriptId && script.status === 'final') {
+              const option = document.createElement('option');
+              option.value = script.id;
+              option.textContent = script.title;
+              select.appendChild(option);
+            }
+          });
+          
+          document.getElementById('assetSelectionModal').classList.remove('hidden');
+        })
+        .catch(error => {
+          console.error('Error fetching scripts:', error);
+          alert(`{% translate "Failed to load scripts" %}: ${error.message}`);
+        });
+    }
+
+    function closeAssetModal() {
+      document.getElementById('assetSelectionModal').classList.add('hidden');
+    }
+
+    function finalizeWithAssets() {
+      const sourceScriptId = document.getElementById('sourceScript').value;
+      const importImages = document.getElementById('importImages').checked;
+      const importVoices = document.getElementById('importVoices').checked;
+      
+      // Show loading state
+      const finalizeModalBtn = document.querySelector('#assetSelectionModal button.bg-blue-700');
+      finalizeModalBtn.disabled = true;
+      finalizeModalBtn.innerHTML = '{% translate "Finalizing..." %}';
+      
+      fetch(`{% url "workspaces:script_finalize" workspace.id script.id %}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+          source_script_id: sourceScriptId,
+          import_images: importImages,
+          import_voices: importVoices
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          window.location.href = data.redirect_url;
+        } else {
+          alert(data.error || '{% translate "Failed to finalize script" %}');
+          finalizeModalBtn.disabled = false;
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        alert('{% translate "An error occurred while finalizing the script" %}');
+      });
+    }
+
+    // Finalize script
+    if (finalizeBtn) {
+      finalizeBtn.addEventListener('click', function() {
+        // If currently editing, save first
+        if (isEditing) {
+          if (codeMirrorEditor.getValue() !== lastSavedContent) {
+            if (!confirm('{% translate "You have unsaved changes. Save before finalizing?" %}')) {
+              return;
+            }
+            autoSave();
+          }
+        }
+        
+        // Show the asset selection modal
+        if (confirm('{% translate "Are you sure you want to finalize this script? This will create screens for each scene." %}')) {
+          showAssetModal();
+        }
+      });
+    }
+
+    // Add click event handlers for modal buttons after the DOM is fully loaded
+    const modalFinalizeBtn = document.querySelector('#assetSelectionModal button.bg-blue-700');
+    if (modalFinalizeBtn) {
+        modalFinalizeBtn.addEventListener('click', finalizeWithAssets);
+        // Remove the onclick attribute for cleaner code
+        modalFinalizeBtn.removeAttribute('onclick');
+    }
+    
+    const modalCancelBtns = document.querySelectorAll('#assetSelectionModal button.bg-white, #assetSelectionModal button.text-gray-400');
+    modalCancelBtns.forEach(btn => {
+        btn.addEventListener('click', closeAssetModal);
+        // Remove the onclick attribute for cleaner code
+        btn.removeAttribute('onclick');
+    });
   });
 </script>
 {% endblock extra_js %} 
