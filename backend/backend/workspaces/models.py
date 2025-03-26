@@ -203,7 +203,7 @@ class Screen(models.Model):
         blank=True
     )
     
-    output_file = models.FileField(upload_to='screens/', null=True, blank=True, max_length=500)
+    output_file = models.FileField(upload_to='screens/', null=True, blank=True, max_length=5000)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
     error_message = models.TextField(null=True, blank=True)

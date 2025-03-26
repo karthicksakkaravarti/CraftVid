@@ -62,7 +62,7 @@ import json
 from django.http import Http404
 import uuid
 from django.shortcuts import render
-
+from backend.workspaces.services.screen_service import ScreenService
 logger = logging.getLogger(__name__)
 
 
@@ -610,7 +610,6 @@ class WorkspaceViewSet(viewsets.ModelViewSet):
 class MediaViewSet(viewsets.ModelViewSet):
     queryset = Media.objects.all()
     serializer_class = MediaSerializer
-    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     permission_classes = [permissions.IsAuthenticated]
     parser_classes = (parsers.MultiPartParser, parsers.FormParser)
 
@@ -678,6 +677,7 @@ class MediaViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Filter media by workspace and user access"""
         workspace_id = self.kwargs.get('workspace_pk')
+        print(f"workspace_id: {workspace_id}")
         if workspace_id:
             return Media.objects.filter(
                 workspace_id=workspace_id,
@@ -1333,8 +1333,8 @@ class ImageGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
                 )
             except:
                 pass
-                
-            logger.error(f"Error generating images: {str(e)}")
+            import traceback
+            logger.error(f"Error generating images: {str(e)}, {traceback.format_exc()}")
             return JsonResponse({
                 'success': False,
                 'error': str(e)

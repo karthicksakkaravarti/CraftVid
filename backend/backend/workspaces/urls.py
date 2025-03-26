@@ -46,9 +46,7 @@ workspace_router.register(r'scripts', ScriptViewSet, basename='workspace-scripts
 api_urlpatterns = [
     path('api/', include(router.urls)),
     path('api/', include(workspace_router.urls)),
-    path('workspaces/<uuid:workspace_pk>/screens/<int:pk>/link-media/', 
-         ScreenViewSet.as_view({'post': 'link_media'}), 
-         name='screen-link-media'),
+
 ]
 
 # URL patterns for the Web UI
@@ -70,7 +68,6 @@ web_urlpatterns = [
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/batch-generate/', BatchGenerationView.as_view(), name='batch_generate'),
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/update/', ScriptUpdateView.as_view(), name='script_update'),
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/finalize/', ScriptFinalizeView.as_view(), name='script_finalize'),
-    
     # Screen management views
     path('<uuid:workspace_id>/screens/<int:screen_id>/', ScreenDetailView.as_view(), name='screen_detail'),
     path('<uuid:workspace_id>/screens/<int:screen_id>/translate/', ScreenTranslationView.as_view(), name='screen_translate'),
@@ -81,7 +78,7 @@ web_urlpatterns = [
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/regenerate-image/', ImageRegenerationView.as_view(), name='regenerate_image'),
     
     # Image generation views - screen-based
-    path('<uuid:workspace_id>/screens/<int:screen_id>/generate-images/', ImageGenerationView.as_view(), name='screen_generate_images'),
+    path('<uuid:workspace_id>/screens/<int:screen_id>/generate-image/', ImageGenerationView.as_view(), name='screen_generate_images'),
     
     # Voice generation views - script-based (legacy)
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/voices/', VoiceEditorView.as_view(), name='voice_editor'),

@@ -170,7 +170,7 @@ class ScreenSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Screen
-        fields = ['id', 'name', 'settings', 'scenes', 'status', 'output_file', 
+        fields = ['id', 'name', 'scene', 'scene_data', 'status', 'output_file', 
                  'created_at', 'updated_at', 'error_message']
         read_only_fields = ['status', 'output_file', 'created_at', 'updated_at',
                            'error_message']
