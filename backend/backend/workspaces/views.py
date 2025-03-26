@@ -2616,3 +2616,30 @@ class BatchGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
                 'success': False,
                 'error': error_msg
             }, status=500)
+
+class MediaListView(LoginRequiredMixin, UserWorkspacePermissionMixin, DetailView):
+    """View for displaying and managing workspace media files."""
+    model = Workspace
+    template_name = 'workspaces/media_list.html'
+    context_object_name = 'workspace'
+
+    # def get_queryset(self):
+    #     """Filter workspaces to only show those the user has access to."""
+    #     return Workspace.objects.filter(workspacemember__user=self.request.user)
+
+    # def get_context_data(self, **kwargs):
+    #     """Add media files to the context."""
+    #     context = super().get_context_data(**kwargs)
+    #     workspace = self.get_object()
+        
+    #     # Get all media files for this workspace
+    #     media_files = Media.objects.filter(workspace=workspace).order_by('-created_at')
+        
+    #     # Group media by type
+    #     context['media_files'] = {
+    #         'images': media_files.filter(file_type='image'),
+    #         'videos': media_files.filter(file_type='video'),
+    #         'audio': media_files.filter(file_type='audio')
+    #     }
+        
+    #     return context
