@@ -14,17 +14,28 @@
 {% block content %}
 <div class="container mx-auto px-4 py-8">
   <!-- Breadcrumbs -->
-  <div class="text-sm breadcrumbs mb-6">
-    <ul>
-      <li><a href="{% url 'workspaces:list' %}">{% translate "Workspaces" %}</a></li>
-      <li><a href="{% url 'workspaces:detail' workspace.id %}">{{ workspace.name }}</a></li>
-      <li><a href="{% url 'workspaces:script_management' workspace_id=workspace.id script_id=script.id %}">{{ script.title }}</a></li>
-      {% if not is_script_view %}
-        <li>{{ screen.name }}</li>
+  <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
+    <a href="{% url 'workspaces:list' %}" class="hover:text-blue-600">
+      {% translate "Workspaces" %}
+    </a>
+    <span>/</span>
+    <a href="{% url 'workspaces:detail' workspace.id %}" class="hover:text-blue-600">
+      {{ workspace.name }}
+    </a>
+    <span>/</span>
+    {% if script %}
+      <a href="{% url 'workspaces:script_management' workspace_id=workspace.id script_id=script.id %}" class="hover:text-blue-600">
+        {{ script.title }}
+      </a>
+      <span>/</span>
+      {% if not is_script_view and screen %}
+        <span>{{ screen.name }}</span>
       {% else %}
-        <li>{% translate "Screens" %}</li>
+        <span>{% translate "Screens" %}</span>
       {% endif %}
-    </ul>
+    {% elif screen %}
+      <span>{{ screen.name }}</span>
+    {% endif %}
   </div>
 
   {% if is_script_view %}

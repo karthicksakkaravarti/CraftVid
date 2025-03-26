@@ -361,4 +361,10 @@
   - **Task**: Create integration tests for API endpoints
   - **Files**:
     - `backend/backend/users/tests/test_api.py`: Create user API tests
-    - `
+    
+## Others
+
+- [ ] Step 33: Create Idea page where we will enter the video ideas 
+  - **Task**: Create Page for adding/editing Idea page
+  - **Files**:
+    - `backend/backend/users/tests/test_api.py`: Create user API tests

@@ -171,7 +171,7 @@
         
         <div class="space-y-4">
           {% for script in workspace.scripts.all %}
-            <div class="p-4 border border-gray-200 rounded-lg hover:border-blue-500 transition-colors">
+            <a href="{% url 'workspaces:script_management' workspace.id script.id %}" class="block p-4 border border-gray-200 rounded-lg hover:border-blue-500 transition-colors">
               <div class="flex justify-between items-start">
                 <div>
                   <h3 class="font-medium text-gray-900">{{ script.title }}</h3>
@@ -181,7 +181,7 @@
                   {{ script.status|title }}
                 </span>
               </div>
-            </div>
+            </a>
           {% empty %}
             <div class="text-center py-8 text-gray-500">
               <p>{% translate "No scripts created yet." %}</p>
@@ -251,15 +251,15 @@
         </div>
 
         <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {% for asset in workspace.assets.all %}
+          {% for asset in workspace.media_files.all %}
             <div class="group relative aspect-square bg-gray-100 rounded-lg overflow-hidden">
-              {% if asset.type == 'image' %}
+              {% if asset.file_type == 'image' %}
                 <img src="{{ asset.file.url }}" alt="{{ asset.name }}" class="w-full h-full object-cover">
-              {% elif asset.type == 'video' %}
+              {% elif asset.file_type == 'video' %}
                 <video class="w-full h-full object-cover">
                   <source src="{{ asset.file.url }}" type="video/mp4">
                 </video>
-              {% elif asset.type == 'audio' %}
+              {% elif asset.file_type == 'audio' %}
                 <div class="w-full h-full flex items-center justify-center bg-blue-100">
                   <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-blue-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                     <path d="M9 18V5l12-2v13"/>
