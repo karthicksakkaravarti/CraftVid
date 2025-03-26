@@ -364,7 +364,18 @@
     
 ## Others
 
-- [ ] Step 33: Create Idea page where we will enter the video ideas 
+- [ ] Step 33: Add translation option for script  
+  - **Task**: Adding translation option to the script
+  - **Files**:
+    - `backend/backend/templates/workspaces/script_management.html`: Add Translation button for final script, on clickin on script as target langauge, after selelcting  lanugae translate the script(only narrator) to target language
+    - `backend/backend/ai/services/translation_service.py`: Change the logic to only change the narrator of script, no batch operation, simply passing script json to   convert the target lanugae(only narrator), create a new script . appending the tagert language end of scipt name at the end 
+
+
+- [ ] Step 34: Create Idea page where we will enter the video ideas 
   - **Task**: Create Page for adding/editing Idea page
   - **Files**:
     - `backend/backend/users/tests/test_api.py`: Create user API tests
+
+
+  - **User Instructions**: Run tests with `python manage.py test`
+

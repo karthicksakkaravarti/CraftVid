@@ -63,6 +63,7 @@ from django.http import Http404
 import uuid
 from django.shortcuts import render
 from backend.workspaces.services.screen_service import ScreenService
+from backend.ai.services.translation_service import TranslationService
 logger = logging.getLogger(__name__)
 
 
@@ -2643,3 +2644,78 @@ class MediaListView(LoginRequiredMixin, UserWorkspacePermissionMixin, DetailView
     #     }
         
     #     return context
+
+class ScriptTranslationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View):
+    """View for translating script narration to different languages."""
+    
+    def post(self, request, workspace_id, script_id):
+        """Handle POST request to translate script narration."""
+        try:
+            # Get the script
+            script = get_object_or_404(Script, id=script_id, workspace_id=workspace_id)
+            # Get target language from request
+            data = json.loads(request.body)
+            target_language = data.get('target_language')
+            if not target_language:
+                return JsonResponse({
+                    'success': False,
+                    'error': _('Target language is required.')
+                }, status=400)
+            
+            # Get script content
+            script_content = script.content
+            if not script_content:
+                return JsonResponse({
+                    'success': False,
+                    'error': _('Script content is empty.')
+                }, status=400)
+            
+            # Initialize translation service with user's API key if available
+            api_key = request.user.openai_api_key if hasattr(request.user, 'openai_api_key') else None
+            translation_service = TranslationService(api_key=api_key)
+            
+            try:
+                # Translate script narration
+                translated_content = translation_service.translate_script_narration(
+                    script,
+                    target_language,
+                    request=request
+                )
+                
+                # Create new script with translated content
+                new_script = Script.objects.create(
+                    workspace_id=workspace_id,
+                    title=f"{script.title} ({translation_service.language_names[target_language]})",
+                    topic=script.topic,
+                    content=json.dumps(translated_content.get("scenes", [])),
+                    original_script=script,
+                    created_by=request.user,
+                    status='draft'
+                )
+                
+                return JsonResponse({
+                    'success': True,
+                    'redirect_url': reverse('workspaces:script_management', kwargs={
+                        'workspace_id': workspace_id,
+                        'script_id': new_script.id
+                    })
+                })
+                
+            except Exception as e:
+                logger.error(f"Translation error: {str(e)}")
+                return JsonResponse({
+                    'success': False,
+                    'error': _('Failed to translate script. Please try again.')
+                }, status=500)
+            
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'success': False,
+                'error': _('Invalid request data.')
+            }, status=400)
+        except Exception as e:
+            logger.error(f"Unexpected error in script translation: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'error': _('An unexpected error occurred.')
+            }, status=500)

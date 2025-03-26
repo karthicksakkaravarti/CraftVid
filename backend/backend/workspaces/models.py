@@ -392,6 +392,23 @@ class Script(models.Model):
         null=True,
         blank=True
     )
+    
+    # Translation fields
+    original_script = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        related_name='translations',
+        null=True,
+        blank=True,
+        help_text=_('The original script this is translated from')
+    )
+    language = models.CharField(
+        _('Language'),
+        max_length=10,
+        default='en',
+        help_text=_('ISO language code')
+    )
+    
     # Script generation parameters
     topic = models.CharField(_('Topic'), max_length=255)
     audience = models.CharField(

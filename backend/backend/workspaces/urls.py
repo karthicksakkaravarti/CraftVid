@@ -28,7 +28,8 @@ from backend.workspaces.views import (
     ScreenTranslationView,
     ChannelViewSet,
     BatchGenerationView,
-    MediaListView
+    MediaListView,
+    ScriptTranslationView
 )
 from rest_framework_nested import routers
 
@@ -88,8 +89,8 @@ web_urlpatterns = [
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/generate-voices/', VoiceGenerationView.as_view(), name='generate_voices'),
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/video/', VideoEditorView.as_view(), name='video_editor'),
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/generate-video/', VideoGenerationView.as_view(), name='generate_video'),
+    path('<uuid:workspace_id>/scripts/<uuid:script_id>/translate/',ScriptTranslationView.as_view(),name='script_translate'),
     
-
 ]
 
 # Combine all URL patterns
