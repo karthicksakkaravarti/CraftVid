@@ -1,8 +1,17 @@
+import os
+import uuid
+import logging
+from typing import Dict, List, Optional, Any, Union, Tuple
+from datetime import datetime, timedelta
+
 from django.db import models
 from django.conf import settings
 from django.utils.translation import gettext_lazy as _
-import uuid
-import os
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
+
+
+logger = logging.getLogger(__name__)
 
 
 class Channel(models.Model):
@@ -215,7 +224,6 @@ class Screen(models.Model):
         """Generate an image for this screen based on scene_data['visual'].
         
         This method should be implemented to call an image generation service.
-        For now, it's a placeholder.
         
         Args:
             user: The user generating the image (for API key access)
@@ -223,42 +231,107 @@ class Screen(models.Model):
         Returns:
             Media: The generated image media object
         """
-        from backend.ai.services.image_service import generate_image
+        from backend.ai.services.image_service import ImageService
+        from backend.workspaces.services.screen_service import ScreenService
         
         # Get the visual description from scene_data
         visual_prompt = self.scene_data.get('visual', '')
         if not visual_prompt:
+            error_info = {
+                "error_type": "missing_prompt",
+                "message": "No visual description found in scene data",
+                "advice": "Please add a visual description to the scene"
+            }
+            ScreenService.update_screen_status(
+                screen_id=str(self.id),
+                component='images',
+                status='failed',
+                error_info=error_info
+            )
             raise ValueError("No visual description found in scene data")
             
-        # Generate the image
-        image_file = generate_image(visual_prompt, user)
+        try:
+            # Use the ImageService to generate and save the image
+            api_key = user.openai_api_key if user else None
+            image_service = ImageService(api_key=api_key)
+            
+            # Generate and save the image
+            media = image_service.generate_and_save_image(
+                prompt=visual_prompt,
+                workspace=self.workspace,
+                name=f"Image for {self.name}",
+                user=user,
+                script_context={
+                    'title': self.script.title if self.script else None,
+                    'screen_name': self.name
+                }
+            )
+                
+            # Link the image to this screen
+            self.image = media
+            self.save(update_fields=['image', 'updated_at'])
+            
+            # Update the status to completed
+            ScreenService.update_screen_status(
+                screen_id=str(self.id),
+                component='images',
+                status='completed'
+            )
+            
+            return media
+            
+        except ValueError as e:
+            # Check if this is a rate limit error with metadata
+            if len(e.args) > 1 and isinstance(e.args[1], dict) and 'error' in e.args[1]:
+                error_info = e.args[1]['error']
+                logger.warning(f"Rate limit error generating image for screen {self.id}: {error_info}")
+                
+                # Update the screen status with the error information
+                ScreenService.update_screen_status(
+                    screen_id=str(self.id),
+                    component='images',
+                    status='rate_limited',
+                    error_info=error_info
+                )
+            else:
+                # Handle other ValueError
+                error_info = {
+                    "error_type": "value_error",
+                    "message": str(e),
+                    "advice": "Check the input parameters and try again"
+                }
+                ScreenService.update_screen_status(
+                    screen_id=str(self.id),
+                    component='images',
+                    status='failed',
+                    error_info=error_info
+                )
+            raise
         
-        # Create a Media object for the image
-        media = Media.objects.create(
-            workspace=self.workspace,
-            name=f"Image for {self.name}",
-            file_type='image',
-            file=image_file,
-            file_size=image_file.size,
-            metadata={
-                'prompt': visual_prompt,
-                'screen_id': str(self.id),
-                'script_id': str(self.script.id) if self.script else None
-            },
-            uploaded_by=user
-        )
-        
-        # Link the image to this screen
-        self.image = media
-        self.save(update_fields=['image', 'updated_at'])
-        
-        return media
+        except Exception as e:
+            # Handle general exceptions
+            error_message = str(e)
+            error_info = {
+                "error_type": "general_error",
+                "message": error_message,
+                "advice": "An unexpected error occurred. Please try again later."
+            }
+            
+            # Update the screen status with the error information
+            ScreenService.update_screen_status(
+                screen_id=str(self.id),
+                component='images',
+                status='failed',
+                error_info=error_info
+            )
+            
+            logger.error(f"Error generating image for screen {self.id}: {error_message}")
+            raise
         
     def generate_voice(self, user=None):
         """Generate a voice-over for this screen based on scene_data['narrator'].
         
         This method should be implemented to call a voice synthesis service.
-        For now, it's a placeholder.
         
         Args:
             user: The user generating the voice (for API key access)
@@ -266,28 +339,51 @@ class Screen(models.Model):
         Returns:
             Media: The generated voice media object
         """
-        from backend.ai.services.elevenlabs_service import generate_voice
+        from backend.ai.services.elevenlabs_service import ElevenLabsService
         
         # Get the narrator text from scene_data
         narrator_text = self.scene_data.get('narrator', '')
         if not narrator_text:
             raise ValueError("No narrator text found in scene data")
             
+        # Use the ElevenLabsService to generate the voice
+        api_key = user.elevenlabs_api_key if user else None
+        voice_service = ElevenLabsService(api_key=api_key)
+        
+        # Get a default voice ID if none is specified in the scene data
+        voice_id = self.scene_data.get('voice_id', 'nPczCjzI2devNBz1zQrb')  # Default to 'Brain' voice
+        model_id = 'eleven_multilingual_v2'  # Default model
+        
         # Generate the voice
-        voice_file = generate_voice(narrator_text, user)
+        audio_bytes, metadata = voice_service.generate_voice(
+            text=narrator_text,
+            voice_id=voice_id,
+            model_id=model_id,
+            user=user
+        )
+        
+        # Save the audio file
+        filename = f"{uuid.uuid4()}.mp3"
+        local_path, relative_path = voice_service.save_audio_file(
+            audio_bytes, self.workspace, filename
+        )
+        
+        # Get file size
+        file_size = os.path.getsize(local_path)
         
         # Create a Media object for the voice
         media = Media.objects.create(
             workspace=self.workspace,
             name=f"Voice for {self.name}",
             file_type='audio',
-            file=voice_file,
-            file_size=voice_file.size,
-            duration=voice_file.duration,  # Assuming the voice file has a duration property
+            file=relative_path,
+            file_size=file_size,
             metadata={
                 'text': narrator_text,
                 'screen_id': str(self.id),
-                'script_id': str(self.script.id) if self.script else None
+                'script_id': str(self.script.id) if self.script else None,
+                'voice_id': voice_id,
+                'model_id': model_id
             },
             uploaded_by=user
         )
@@ -345,16 +441,77 @@ class Screen(models.Model):
             self.status = 'processing'
             self.save(update_fields=['status', 'updated_at'])
             
+            # Check if image and voice files exist
+            image_path = self.image.file.path if self.image and hasattr(self.image.file, 'path') else None
+            voice_path = self.voice.file.path if self.voice and hasattr(self.voice.file, 'path') else None
+            
+            if not image_path or not os.path.exists(image_path):
+                raise FileNotFoundError(f"Image file not found or inaccessible: {image_path}")
+                
+            if not voice_path or not os.path.exists(voice_path):
+                raise FileNotFoundError(f"Voice file not found or inaccessible: {voice_path}")
+            
+            # If there's already an output file, delete it to save space
+            if self.output_file:
+                try:
+                    # Get the path of the current output file
+                    old_file_path = self.output_file.path
+                    
+                    # Check if the file exists
+                    if os.path.exists(old_file_path):
+                        logger.info(f"Removing old preview file: {old_file_path}")
+                        os.remove(old_file_path)
+                except Exception as e:
+                    # Just log this error, don't fail the whole process
+                    logger.warning(f"Error removing old preview file: {str(e)}")
+            
             # Generate the preview
-            preview_file = generate_preview(self.image.file.path, self.voice.file.path)
+            preview_file = generate_preview(image_path, voice_path)
             
-            # Save the preview file
-            self.output_file = preview_file
-            self.status = 'completed'
-            self.save(update_fields=['output_file', 'status', 'updated_at'])
-            
-            return True
+            try:
+                # Save the preview file to a persistent location in Django's media storage
+                import uuid
+                from django.core.files.storage import default_storage
+                from django.core.files.base import ContentFile
+                
+                # Use the screen ID in the filename to make it more identifiable
+                filename = f"preview_screen_{self.id}.mp4"
+                path = f"screens/{self.workspace.id}/{filename}"
+                
+                # Save the file content to storage
+                preview_content = preview_file.read()
+                stored_path = default_storage.save(path, ContentFile(preview_content))
+                
+                # Update the model
+                self.output_file = stored_path
+                self.status = 'completed'
+                self.save(update_fields=['output_file', 'status', 'updated_at'])
+                
+                # Close the original file to avoid resource leaks
+                preview_file.close()
+                
+                return True
+            except Exception as e:
+                import traceback
+                error_details = f"Error saving preview file: {str(e)}\n{traceback.format_exc()}"
+                logger.error(error_details)
+                self.error_message = f"Error saving preview: {str(e)}"
+                self.status = 'failed'
+                self.save(update_fields=['error_message', 'status', 'updated_at'])
+                
+                # Still try to close the file
+                try:
+                    if preview_file:
+                        preview_file.close()
+                except:
+                    pass
+                
+                return False
+                
         except Exception as e:
+            import traceback
+            error_details = f"{str(e)}\n{traceback.format_exc()}"
+            logger.error(f"Error generating preview for screen {self.id}: {error_details}")
             self.error_message = str(e)
             self.status = 'failed'
             self.save(update_fields=['error_message', 'status', 'updated_at'])
@@ -593,35 +750,73 @@ class Script(models.Model):
         """
         from backend.video.services.compilation_service import compile_video
         
-        # Get all screens for this script
-        screens = Screen.objects.filter(script=self).order_by('name')
-        
-        # Check if we have screens
-        if not screens.exists():
-            return False
-            
-        # Check if all screens have previews
-        incomplete_screens = screens.exclude(status='completed')
-        if incomplete_screens.exists():
-            return False
-            
-        # Get all preview files
-        preview_files = [screen.output_file.path for screen in screens]
-        
         try:
+            # Get all screens for this script
+            screens = Screen.objects.filter(script=self).order_by('scene')
+            
+            # Check if we have screens
+            if not screens.exists():
+                logger.error(f"No screens found for script {self.id}")
+                return False
+                
+            # Check if all screens have previews
+            incomplete_screens = screens.exclude(status='completed')
+            if incomplete_screens.exists():
+                logger.error(f"Found incomplete screens for script {self.id}: {[str(s.id) for s in incomplete_screens]}")
+                return False
+                
+            # Get all preview files and check if they exist
+            preview_files = []
+            for screen in screens:
+                if not screen.output_file:
+                    logger.error(f"Screen {screen.id} has no output file")
+                    return False
+                    
+                try:
+                    file_path = screen.output_file.path
+                    if not os.path.exists(file_path):
+                        logger.error(f"Preview file not found: {file_path}")
+                        return False
+                    preview_files.append(file_path)
+                except Exception as e:
+                    logger.error(f"Error accessing preview file for screen {screen.id}: {str(e)}")
+                    return False
+            
+            # If no valid preview files found, exit
+            if not preview_files:
+                logger.error("No valid preview files found")
+                return False
+                
+            logger.info(f"Compiling video from {len(preview_files)} preview files for script {self.id}")
+            
+            # If there's already an output file, delete it to save space
+            if self.output_file:
+                try:
+                    # Get the path of the current output file
+                    old_file_path = self.output_file.path
+                    
+                    # Check if the file exists
+                    if os.path.exists(old_file_path):
+                        logger.info(f"Removing old compiled video: {old_file_path}")
+                        os.remove(old_file_path)
+                except Exception as e:
+                    # Just log this error, don't fail the whole process
+                    logger.warning(f"Error removing old compiled video: {str(e)}")
+            
             # Compile the video
-            output_file = compile_video(preview_files)
+            output_file = compile_video(preview_files, f"script_{self.id}_final.mp4")
             
             # Save the output file
             self.output_file = output_file
             self.save(update_fields=['output_file', 'updated_at'])
             
+            logger.info(f"Successfully compiled video for script {self.id}")
             return True
         except Exception as e:
             # Log the error
-            import logging
-            logger = logging.getLogger(__name__)
-            logger.error(f"Error compiling video for script {self.id}: {str(e)}")
+            import traceback
+            error_message = f"Error compiling video for script {self.id}: {str(e)}\n{traceback.format_exc()}"
+            logger.error(error_message)
             return False
 
 

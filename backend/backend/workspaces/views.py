@@ -3,7 +3,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 from django.db.models import Q
-from django.shortcuts import get_object_or_404
+from django.shortcuts import get_object_or_404, redirect
 from django.views.generic import (
     ListView, DetailView, CreateView, UpdateView, DeleteView, View, TemplateView
 )
@@ -2091,7 +2091,68 @@ class ScreenDetailView(LoginRequiredMixin, UserWorkspacePermissionMixin, View):
             raise Http404("Either script_id or screen_id must be provided")
         
         return render(request, self.template_name, context)
-
+    
+    def post(self, request, workspace_id, script_id=None, screen_id=None):
+        """Handle POST request for screen actions including final video compilation."""
+        try:
+            # Check if user has access to the workspace
+            workspace = get_object_or_404(
+                Workspace.objects.filter(
+                    Q(owner=request.user) | Q(members=request.user)
+                ),
+                id=workspace_id
+            )
+            
+            # If script_id is provided, handle script-level actions
+            if script_id:
+                script = get_object_or_404(Script, id=script_id, workspace=workspace)
+                
+                # Check if final video generation is requested
+                create_final_video = request.POST.get('create_final_video') == 'true'
+                
+                if create_final_video:
+                    # Queue the final video compilation
+                    from backend.workspaces.services.queue_service import QueueService
+                    
+                    result = QueueService.queue_media_generation(
+                        script_id=str(script.id),
+                        user_id=str(request.user.id),
+                        generate_images=False,
+                        generate_voices=False,
+                        generate_videos=True,
+                        video_options={'create_final_video': True}
+                    )
+                    
+                    if result['status'] == 'success':
+                        messages.success(request, _('Final video compilation has been queued.'))
+                    else:
+                        messages.error(request, _(f'Error: {result["message"]}'))
+                    
+                return redirect('workspaces:script_screens', workspace_id=workspace_id, script_id=script_id)
+            
+            # If screen_id is provided, handle screen-level actions
+            elif screen_id:
+                screen = get_object_or_404(Screen, id=screen_id, workspace=workspace)
+                script = screen.script
+                
+                # Add screen-specific actions here if needed
+                
+                return redirect('workspaces:screen_detail', workspace_id=workspace_id, screen_id=screen_id)
+            
+            else:
+                raise Http404("Either script_id or screen_id must be provided")
+                
+        except Exception as e:
+            logger.error(f"Error in screen detail POST: {str(e)}")
+            messages.error(request, str(e))
+            
+            # Determine the appropriate redirect based on what IDs we have
+            if script_id:
+                return redirect('workspaces:script_screens', workspace_id=workspace_id, script_id=script_id)
+            elif screen_id:
+                return redirect('workspaces:screen_detail', workspace_id=workspace_id, screen_id=screen_id)
+            else:
+                return redirect('workspaces:detail', pk=workspace_id)
 
 class ScreenTranslationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View):
     """View for creating translated versions of screens."""
@@ -2194,11 +2255,8 @@ class BatchGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
             # Get the script
             script = get_object_or_404(Script, id=script_id, workspace=workspace)
             channel = script.channel
+            
             # Get all screens for this script
-            # screens = Screen.objects.filter(script=script).order_by('scene')
-            from django.db.models.expressions import RawSQL
-            from django.db.models.functions import Cast
-            from django.db.models import IntegerField
             screens = Screen.objects.filter(script=script).order_by('scene')
             if not screens.exists():
                 return JsonResponse({
@@ -2211,444 +2269,142 @@ class BatchGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
             generate_voices = request.POST.get('generate_voices') == 'true'
             generate_videos = request.POST.get('generate_videos') == 'true'
             
-            # Image options
-            image_size = request.POST.get('image_size', '1024x1024')
-            image_quality = request.POST.get('image_quality', 'standard')
-            image_style = request.POST.get('image_style', 'vivid')
+            # Prepare options dictionaries for each media type
+            image_options = {
+                'size': request.POST.get('image_size', '1024x1024'),
+                'quality': request.POST.get('image_quality', 'standard'),
+                'style': request.POST.get('image_style', 'vivid')
+            }
             
-            # Voice options
-            voice_id = request.POST.get('voice_id', 'nPczCjzI2devNBz1zQrb')
-            model_id = request.POST.get('model_id', 'eleven_multilingual_v2')
+            voice_options = {
+                'voice_id': request.POST.get('voice_id', 'nPczCjzI2devNBz1zQrb'),
+                'model_id': request.POST.get('model_id', 'eleven_multilingual_v2')
+            }
             
-            # Video options
-            video_quality = request.POST.get('video_quality', 'medium')
-            background_music_id = request.POST.get('background_music_id', '')
+            video_options = {
+                'quality': request.POST.get('video_quality', 'medium'),
+                'background_music_id': request.POST.get('background_music_id', ''),
+                'create_final_video': request.POST.get('create_final_video') == 'true'
+            }
             
-            # Import services
-            from backend.workspaces.services.screen_service import ScreenService
-            from backend.ai.services.image_service import ImageService
-            from backend.ai.services.elevenlabs_service import ElevenLabsService
-            
-            # Get API keys
-            openai_api_key = request.user.openai_api_key
-            elevenlabs_api_key = request.user.elevenlabs_api_key or settings.ELEVENLABS_API_KEY
-            
-            # Initialize services
-            image_service = None
-            voice_service = None
-            
-            if generate_images and not openai_api_key:
+            # Check for required API keys
+            if generate_images and not request.user.openai_api_key:
                 return JsonResponse({
                     'success': False,
                     'error': _('OpenAI API key not found. Please add your API key in your profile settings.')
                 }, status=400)
-            elif generate_images:
-                image_service = ImageService(api_key=openai_api_key)
             
-            if generate_voices and not elevenlabs_api_key:
+            if generate_voices and not (request.user.elevenlabs_api_key or settings.ELEVENLABS_API_KEY):
                 return JsonResponse({
                     'success': False,
                     'error': _('ElevenLabs API key not found. Please add your API key in your profile settings.')
                 }, status=400)
-            elif generate_voices:
-                voice_service = ElevenLabsService(api_key=elevenlabs_api_key)
             
-            # Process each screen
-            processed_screens = 0
-            errors = []
+            # Use the queue service to schedule batch processing
+            from backend.workspaces.services.queue_service import QueueService
             
-            for screen in screens:
-                try:
-                    # Generate image
-                    if generate_images:
-                        # Delete old image if it exists
-                        # if screen.image:
-                        #     old_image = screen.image
-                        #     screen.image = None
-                        #     screen.save(update_fields=['image'])
-                        #     old_image.delete()
-                        
-                        # Update screen status
-                        ScreenService.update_screen_status(
-                            screen_id=str(screen.id),
-                            component='images',
-                            status='processing'
-                        )
-                        
-                        try:
-                            # Get scene data
-                            scene_data = screen.scene_data
-                            
-                            # Generate image
-                            prompt = scene_data.get('visual', '')
-                            if not prompt:
-                                errors.append(f"No visual description found for screen '{screen.name}'")
-                                continue
-                            logger.info('calling generate_and_save_image')
-                            try:
-                                media = image_service.generate_and_save_image(
-                                    prompt=prompt,
-                                    workspace=workspace,
-                                    name=f"Image for {screen.name}",
-                                    user=request.user,
-                                    size=image_size,
-                                    quality=image_quality,
-                                    style=image_style,
-                                    script_context={
-                                        'title': script.title,
-                                        'screen_name': screen.name
-                                    }
-                                )
-                                logger.info(f'Image generated successfully. Media object: {media and media.id}')
-                            except Exception as e:
-                                logger.error(f'Error in generate_and_save_image: {str(e)}')
-                                raise
-                            logger.info(f'media: {media}')
-                            # Link the image to the screen
-                            screen.image = media
-                            screen.save(update_fields=['image'])
-                            
-                            # Update screen status
-                            ScreenService.update_screen_status(
-                                screen_id=str(screen.id),
-                                component='images',
-                                status='completed'
-                            )
-                        except Exception as e:
-                            logger.error(f"Error generating image for screen '{screen.name}': {str(e)}")
-                            errors.append(f"Error generating image for screen '{screen.name}': {str(e)}")
-                            ScreenService.update_screen_status(
-                                screen_id=str(screen.id),
-                                component='images',
-                                status='failed'
-                            )
-                    
-                    # Generate voice
-                    if generate_voices:
-                        # Delete old voice if it exists
-                        if screen.voice:
-                            old_voice = screen.voice
-                            screen.voice = None
-                            screen.save(update_fields=['voice'])
-                            old_voice.delete()
-                        
-                        # Update screen status
-                        ScreenService.update_screen_status(
-                            screen_id=str(screen.id),
-                            component='voices',
-                            status='processing'
-                        )
-                        
-                        try:
-                            # Get scene data
-                            scene_data = screen.scene_data
-                            
-                            # Get the text to convert to speech
-                            text = scene_data.get('narrator', '')
-                            if not text:
-                                errors.append(f"No narrator text found for screen '{screen.name}'")
-                                continue
-                            
-                            logger.info(f"Generating voice for screen '{screen.name}' with text: {text[:50]}...")
-                                
-                            # Generate voice
-                            audio_bytes, metadata = voice_service.generate_voice(
-                                text=text,
-                                voice_id=voice_id,
-                                model_id=model_id,
-                                user=request.user
-                            )
-                            
-                            logger.info(f"Voice file generated successfully for screen '{screen.name}'")
-                            
-                            # Save the audio file
-                            filename = f"{uuid.uuid4()}.mp3"
-                            local_path, relative_path = voice_service.save_audio_file(
-                                audio_bytes, workspace, filename
-                            )
-                            
-                            # Get file size
-                            file_size = os.path.getsize(local_path)
-                            
-                            # Create a Media object for the voice
-                            media = Media.objects.create(
-                                workspace=workspace,
-                                name=f"Voice for {screen.name}",
-                                file_type='audio',
-                                file=relative_path,
-                                file_size=file_size,
-                                metadata={
-                                    'text': text,
-                                    'screen_id': str(screen.id),
-                                    'script_id': str(screen.script.id) if screen.script else None,
-                                    'generation_params': {
-                                        'voice_id': voice_id,
-                                        'model_id': model_id,
-                                        'character_count': metadata.get('character_count', 0)
-                                    }
-                                },
-                                uploaded_by=request.user
-                            )
-                            
-                            # Link the voice to the screen
-                            screen.voice = media
-                            screen.save(update_fields=['voice'])
-                            
-                            # Update screen status
-                            ScreenService.update_screen_status(
-                                screen_id=str(screen.id),
-                                component='voices',
-                                status='completed'
-                            )
-                        except Exception as e:
-                            errors.append(f"Error generating voice for screen '{screen.name}': {str(e)}")
-                            ScreenService.update_screen_status(
-                                screen_id=str(screen.id),
-                                component='voices',
-                                status='failed'
-                            )
-                    
-                    # Generate video (only if image and voice are available)
-                    if generate_videos and screen.image and screen.voice:
-                        # Delete old video file if it exists but keep the media object
-                        # Check if video media already exists for this screen
-                        try:
-                            existing_video = Media.objects.filter(
-                                workspace=workspace,
-                                file_type='video',
-                                metadata__screen_id=str(screen.id)
-                            )
-                            # Delete the existing video file
-                            for video in existing_video:
-                                if video.file:
-                                    try:
-                                        os.remove(os.path.join(settings.MEDIA_ROOT, video.file.name))
-                                        logger.info(f"Deleted existing video file: {video.file.name}")
-                                    except Exception as e:
-                                        logger.warning(f"Error deleting existing video file: {str(e)}")
-                            # Delete the media object
-                            existing_video.delete()
-                            logger.info(f"Deleted existing video media object for screen {screen.id}")
-                        except Media.DoesNotExist:
-                            pass
-                        
-                        # Update screen status
-                        ScreenService.update_screen_status(
-                            screen_id=str(screen.id),
-                            component='video',
-                            status='processing'
-                        )
-                        
-                        try:
-                            # Verify image and voice files exist
-                            if not os.path.exists(screen.image.file.path):
-                                error_msg = f"Image file not found for screen '{screen.name}'"
-                                logger.error(error_msg)
-                                errors.append(error_msg)
-                                ScreenService.update_screen_status(
-                                    screen_id=str(screen.id),
-                                    component='video',
-                                    status='failed'
-                                )
-                                continue
-                                
-                            if not os.path.exists(screen.voice.file.path):
-                                error_msg = f"Voice file not found for screen '{screen.name}'"
-                                logger.error(error_msg)
-                                errors.append(error_msg)
-                                ScreenService.update_screen_status(
-                                    screen_id=str(screen.id),
-                                    component='video',
-                                    status='failed'
-                                )
-                                continue
-                            
-                            # Get background music if provided
-                            background_music = None
-                            if background_music_id:
-                                try:
-                                    background_music = Media.objects.get(
-                                        id=background_music_id,
-                                        workspace=workspace,
-                                        file_type='audio'
-                                    )
-                                    
-                                    # Verify background music file exists
-                                    if not os.path.exists(background_music.file.path):
-                                        logger.warning(f"Background music file not found: {background_music.file.path}")
-                                        background_music = None
-                                except Media.DoesNotExist:
-                                    logger.warning(f"Background music with ID {background_music_id} not found")
-                                    background_music = None
-                            # Generate the video
-                            from backend.video.services.ffmpeg_service import FFmpegService
-                            ffmpeg_service = FFmpegService()
-                            
-                            logger.info(f"Generating video for screen '{screen.name}'...")
-                            
-                            # Generate video file
-                            video_file = ffmpeg_service.generate_video(
-                                image_path=screen.image.file.path,
-                                audio_path=screen.voice.file.path,
-                                # background_music_path=background_music.file.path if background_music else None,
-                                background_music_path='backend/backend/media/background.mp3',
-                                quality=video_quality
-                            )
-                            
-                            logger.info(f"Video file generated successfully for screen '{screen.name}'")
-                            
-                            # Create a Media object for the video
-                            media = Media.objects.create(
-                                workspace=workspace,
-                                name=f"Video for {screen.name}",
-                                file_type='video',
-                                file=video_file,
-                                file_size=os.path.getsize(os.path.join(settings.MEDIA_ROOT, video_file)),
-                                metadata={
-                                    'screen_id': str(screen.id),
-                                    'script_id': str(screen.script.id) if screen.script else None,
-                                    'image_id': str(screen.image.id),
-                                    'voice_id': str(screen.voice.id),
-                                    'background_music_id': str(background_music.id) if background_music else None,
-                                    'generation_params': {
-                                        'quality': video_quality
-                                    }
-                                },
-                                uploaded_by=request.user
-                            )
-                            # Update screen with video
-                            screen.output_file = video_file
-                            screen.save(update_fields=['output_file'])
-                            
-                            # Update screen status
-                            ScreenService.update_screen_status(
-                                screen_id=str(screen.id),
-                                component='video',
-                                status='completed'
-                            )
-                        except Exception as e:
-                            errors.append(f"Error generating video for screen '{screen.name}': {str(e)}")
-                            ScreenService.update_screen_status(
-                                screen_id=str(screen.id),
-                                component='video',
-                                status='failed'
-                            )
-                    
-                    processed_screens += 1
-                except Exception as e:
-                    errors.append(f"Error processing screen '{screen.name}': {str(e)}")
-
-            # Compile all videos into a single final video if videos were generated
-            final_video_path = None
-            if generate_videos and processed_screens > 0:
-                try:
-                    logger.info("Compiling all videos into a single final video...")
-                    
-                    # Import FFmpegService
-                    from backend.video.services.ffmpeg_service import FFmpegService
-                    ffmpeg_service = FFmpegService()
-                    
-                    # Prepare scene data for compilation
-                    scenes_data = []
-                    for screen in screens:
-                        if hasattr(screen, 'output_file') and screen.output_file:
-                            scenes_data.append({
-                                'preview_url': screen.output_file.name,
-                                'duration': None  # Let the service determine duration
-                            })
-                    
-                    if scenes_data:
-                        # Delete old final video if it exists
-                        # if script.output_file:
-                        #     old_final_video = script.output_file
-                        #     script.output_file = None
-                        #     script.save(update_fields=['output_file'])
-                        #     old_final_video.delete()
-                        
-                        # Generate a unique output name
-                        output_name = f"final_{script.title.replace(' ', '_')}_{uuid.uuid4()}.mp4"
-                        
-                        # Compile the video
-                        final_video_path = ffmpeg_service.compile_video(
-                            scenes=scenes_data,
-                            workspace_id=str(workspace.id),
-                            output_name=output_name,
-                            quality=video_quality,
-                            background_music='backend/backend/media/background.mp3',
-                            channel=channel
-                        )
-                        
-                        # Delete old final video file if it exists but keep the media object
-                        if script.output_file:
-                            try:
-                                if os.path.exists(script.output_file.file.path):
-                                    os.remove(script.output_file.file.path)
-                                    logger.info(f"Deleted existing final video file: {script.output_file.file.path}")
-                            except Exception as e:
-                                logger.warning(f"Error deleting existing final video file: {str(e)}")
-                        
-                        # Create a Media object for the final video
-                        final_media = Media.objects.create(
-                            workspace=workspace,
-                            name=f"Final Video for {script.title}",
-                            file_type='video',
-                            file=final_video_path,
-                            file_size=os.path.getsize(os.path.join(settings.MEDIA_ROOT, final_video_path)),
-                            metadata={
-                                'script_id': str(script.id),
-                                'screen_count': len(scenes_data),
-                                'generation_params': {
-                                    'quality': video_quality
-                                }
-                            },
-                            uploaded_by=request.user
-                        )
-                        
-                        # Update script with final video
-                        script.output_file = final_media
-                        script.save(update_fields=['output_file'])
-                        
-                        logger.info(f"Final video compiled successfully: {final_video_path}")
-                except Exception as e:
-                    import traceback
-                    logger.error(f"Error compiling final video: {str(e)}", traceback.format_exc())
-                    errors.append(f"Error compiling final video: {str(e)}", traceback.format_exc())
+            result = QueueService.queue_media_generation(
+                script_id=str(script.id),
+                user_id=str(request.user.id),
+                generate_images=generate_images,
+                generate_voices=generate_voices,
+                generate_videos=generate_videos,
+                image_options=image_options,
+                voice_options=voice_options,
+                video_options=video_options
+            )
             
-            # Return response
-            if processed_screens > 0:
-                response_data = {
+            if result['status'] == 'success':
+                return JsonResponse({
                     'success': True,
-                    'processed_screens': processed_screens,
-                    'message': _('Batch generation completed successfully')
-                }
-                
-                # Add final video information if available
-                if final_video_path:
-                    response_data['final_video'] = {
-                        'path': final_video_path,
-                        'url': f"{settings.MEDIA_URL}{final_video_path}",
-                        'screen_count': len(scenes_data)
-                    }
-                
-                # Add errors if any
-                if errors:
-                    response_data['errors'] = errors
-                    response_data['message'] = _('Batch generation completed with some errors')
-                
-                return JsonResponse(response_data)
+                    'message': _('Media generation tasks have been queued. You can check their status on each screen.'),
+                    'task_ids': result['task_ids']
+                })
             else:
                 return JsonResponse({
                     'success': False,
-                    'errors': errors,
-                    'message': _('Batch generation failed')
+                    'error': result['message']
                 }, status=400)
                 
         except Exception as e:
-            error_msg = f"Error in batch generation: {str(e)}"
-            logger.error(error_msg)
+            logger.error(f"Error in batch generation: {str(e)}")
             return JsonResponse({
                 'success': False,
-                'error': error_msg
+                'error': str(e)
+            }, status=500)
+            
+    def get(self, request, workspace_id, script_id):
+        """Handle GET request to retrieve status of batch generation tasks."""
+        try:
+            # Check if user has access to the workspace
+            workspace = get_object_or_404(
+                Workspace.objects.filter(
+                    Q(owner=request.user) | Q(members=request.user)
+                ),
+                id=workspace_id
+            )
+            
+            # Get the script
+            script = get_object_or_404(Script, id=script_id, workspace=workspace)
+            
+            # Use the queue service to get status
+            from backend.workspaces.services.queue_service import QueueService
+            
+            result = QueueService.get_queue_status(script_id=str(script.id))
+            
+            if result['status'] == 'success':
+                return JsonResponse({
+                    'success': True,
+                    'screens': result['screens']
+                })
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': result['message']
+                }, status=400)
+                
+        except Exception as e:
+            logger.error(f"Error getting batch status: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+    
+    def delete(self, request, workspace_id, script_id):
+        """Handle DELETE request to cancel batch generation tasks."""
+        try:
+            # Check if user has access to the workspace
+            workspace = get_object_or_404(
+                Workspace.objects.filter(
+                    Q(owner=request.user) | Q(members=request.user)
+                ),
+                id=workspace_id
+            )
+            
+            # Get the script
+            script = get_object_or_404(Script, id=script_id, workspace=workspace)
+            
+            # Use the queue service to cancel tasks
+            from backend.workspaces.services.queue_service import QueueService
+            
+            result = QueueService.cancel_queued_tasks(script_id=str(script.id))
+            
+            if result['status'] == 'success':
+                return JsonResponse({
+                    'success': True,
+                    'message': result['message']
+                })
+            else:
+                return JsonResponse({
+                    'success': False,
+                    'error': result['message']
+                }, status=400)
+                
+        except Exception as e:
+            logger.error(f"Error cancelling batch tasks: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
             }, status=500)
 
 class MediaListView(LoginRequiredMixin, UserWorkspacePermissionMixin, DetailView):

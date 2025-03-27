@@ -9,13 +9,11 @@ from typing import Dict, Any, Optional
 from celery import shared_task
 from django.conf import settings
 
-from backend.utils.tasks import retry_with_backoff, send_task_completion_notification
 
 logger = logging.getLogger(__name__)
 
 
 @shared_task
-@retry_with_backoff(max_retries=3, backoff_factor=5.0)
 def process_video(video_id: int, options: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
     """
     Process a video based on the provided options.

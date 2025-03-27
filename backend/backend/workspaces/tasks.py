@@ -256,9 +256,9 @@ def generate_screen_media(
         user = User.objects.get(id=user_id) if user_id else None
         
         # Import here to avoid circular imports
-        from backend.workspaces.services.screen_service import generate_screen_media as gsm
+        from backend.workspaces.services.screen_service import ScreenService
         
-        media = gsm(screen, media_type, user)
+        media = ScreenService.generate_screen_media(screen, media_type, user)
         
         if media:
             return {
@@ -305,29 +305,47 @@ def generate_screen_preview(screen_id: str) -> Dict[str, Any]:
     try:
         screen = Screen.objects.get(id=screen_id)
         
-        # Import here to avoid circular imports
-        from backend.workspaces.services.screen_service import generate_screen_preview as gsp
+        # Log debug information about the screen
+        logger.info(f"Generating preview for screen {screen_id}, image: {screen.image}, voice: {screen.voice}")
         
-        success = gsp(screen)
+        # Check if we have both image and voice
+        if not screen.image or not screen.voice:
+            error_msg = f"Missing required media - image: {bool(screen.image)}, voice: {bool(screen.voice)}"
+            logger.error(error_msg)
+            return {
+                'status': 'error',
+                'message': f'Failed to generate preview: {error_msg}'
+            }
+            
+        # Import here to avoid circular imports
+        from backend.workspaces.services.screen_service import ScreenService
+        
+        success = ScreenService.generate_screen_preview(screen)
         
         if success:
+            logger.info(f"Successfully generated preview for screen {screen_id}")
             return {
                 'status': 'success',
                 'message': f'Generated preview for screen {screen_id}'
             }
         else:
+            error_msg = f"Failed to generate preview: {screen.error_message}"
+            logger.error(error_msg)
             return {
                 'status': 'error',
-                'message': f'Failed to generate preview for screen {screen_id}'
+                'message': error_msg
             }
     except Screen.DoesNotExist:
-        logger.error(f"Screen with ID {screen_id} not found")
+        error_msg = f"Screen with ID {screen_id} not found"
+        logger.error(error_msg)
         return {
             'status': 'error',
-            'message': f'Screen with ID {screen_id} not found'
+            'message': error_msg
         }
     except Exception as e:
-        logger.error(f"Error generating preview for screen {screen_id}: {str(e)}")
+        import traceback
+        error_details = f"{str(e)}\n{traceback.format_exc()}"
+        logger.error(f"Error generating preview for screen {screen_id}: {error_details}")
         return {
             'status': 'error',
             'message': f'Error generating preview: {str(e)}'

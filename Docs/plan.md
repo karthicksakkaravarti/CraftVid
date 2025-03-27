@@ -379,10 +379,10 @@
   - **User Instructions**: Just add if anything i missed 
 
 
-- [] Step 35: Create celery task for batch processing and queue implementation
+- [x] Step 35: Create celery task for batch processing and queue implementation
   - **Task**: Once clicked on image generation or voice generation or video generation all should moved queue then execute one by one 
   - **Files**:
     - `backend/backend/workspaces/tasks.py`: Keep all the task 
-    - `backend/backend/workspaces/services/queue.py`: Handle all queue realed service
+    - `backend/backend/workspaces/services/queue_service.py`: Handle all queue realed service
     - `backend/backend/templates/workspaces/screen_detail.html` : Update the logic to run the task in quque and show in frontend that task queue up and there status even after refresh
-  - **User Instructions**: Just add if anything i missed 
+  - **User Instructions**: Just add if anything i missed

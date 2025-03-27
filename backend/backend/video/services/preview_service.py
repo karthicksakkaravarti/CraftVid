@@ -33,9 +33,18 @@ def generate_preview(image_path: str, audio_path: str, duration: Optional[float]
     if not os.path.exists(audio_path):
         raise FileNotFoundError(f"Audio file not found: {audio_path}")
     
-    # Create a temporary directory for output
+    # Create a unique filename for the output
+    import uuid
+    output_filename = f"preview_{uuid.uuid4()}.mp4"
+    
+    # Create a temporary directory that will persist
+    persistent_temp_dir = os.path.join(settings.MEDIA_ROOT, 'temp')
+    os.makedirs(persistent_temp_dir, exist_ok=True)
+    persistent_output_path = os.path.join(persistent_temp_dir, output_filename)
+    
+    # Create a temporary working directory
     with tempfile.TemporaryDirectory() as temp_dir:
-        output_path = os.path.join(temp_dir, "preview.mp4")
+        temp_output_path = os.path.join(temp_dir, "preview.mp4")
         
         # Get audio duration if not provided
         if duration is None:
@@ -55,7 +64,7 @@ def generate_preview(image_path: str, audio_path: str, duration: Optional[float]
             '-pix_fmt', 'yuv420p',  # Pixel format
             '-shortest',  # End when the shortest input ends
             '-t', str(duration),  # Duration
-            output_path  # Output file
+            temp_output_path  # Output file
         ]
         
         # Run FFmpeg command
@@ -66,13 +75,26 @@ def generate_preview(image_path: str, audio_path: str, duration: Optional[float]
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE
             )
+            
+            # Copy the file to the persistent location
+            import shutil
+            shutil.copy2(temp_output_path, persistent_output_path)
+            
         except subprocess.CalledProcessError as e:
             logger.error(f"FFmpeg error: {e.stderr.decode()}")
             raise RuntimeError(f"Failed to generate preview: {e.stderr.decode()}")
-        
-        # Create a File object from the output file
-        with open(output_path, 'rb') as f:
-            return File(f, name=os.path.basename(output_path))
+        except Exception as e:
+            logger.error(f"Error saving preview file: {str(e)}")
+            raise RuntimeError(f"Failed to save preview: {str(e)}")
+    
+    # Open the file from the persistent location
+    try:
+        f = open(persistent_output_path, 'rb')
+        # Return a File object that will be saved by Django
+        return File(f, name=output_filename)
+    except Exception as e:
+        logger.error(f"Error opening preview file: {str(e)}")
+        raise RuntimeError(f"Failed to create preview file: {str(e)}")
 
 
 def get_audio_duration(audio_path: str) -> float:

@@ -85,7 +85,11 @@ web_urlpatterns = [
     path('<uuid:workspace_id>/scripts/', WorkspaceScriptsView.as_view(), name='script_list'),
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/', ScriptManagementView.as_view(), name='script_management'),
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/screens/', ScreenDetailView.as_view(), name='script_screens'),
+    
+    # Batch generation endpoints
+    path('<uuid:workspace_id>/scripts/<uuid:script_id>/batch/', BatchGenerationView.as_view(), name='batch_operations'),
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/batch-generate/', BatchGenerationView.as_view(), name='batch_generate'),
+    
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/update/', ScriptUpdateView.as_view(), name='script_update'),
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/finalize/', ScriptFinalizeView.as_view(), name='script_finalize'),
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/images/', ImageEditorView.as_view(), name='image_editor'),

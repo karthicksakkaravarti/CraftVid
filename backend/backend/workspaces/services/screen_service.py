@@ -3,6 +3,7 @@ Screen generation service for managing screens.
 """
 import json
 import logging
+import os
 from typing import List, Dict, Optional, Tuple
 
 from django.db import transaction
@@ -148,18 +149,15 @@ class ScreenService:
         return translated_screen
     
     @staticmethod
-    def update_screen_status(
-        screen_id: str, 
-        component: str, 
-        status: str
-    ) -> bool:
+    def update_screen_status(screen_id: str, component: str, status: str, error_info: Optional[Dict] = None) -> bool:
         """
-        Update the status of a screen component.
+        Update the status of a component for a screen.
         
         Args:
-            screen_id: The ID of the screen
-            component: The component to update ('images', 'voices', 'video')
-            status: The new status ('pending', 'processing', 'completed', 'failed')
+            screen_id: ID of the screen to update
+            component: Component to update ('images', 'voices', 'video')
+            status: New status ('pending', 'processing', 'completed', 'failed', 'queued', 'rate_limited')
+            error_info: Optional dictionary with error details
             
         Returns:
             True if successful, False otherwise
@@ -167,40 +165,36 @@ class ScreenService:
         try:
             screen = Screen.objects.get(id=screen_id)
             
-            # Get current status_data or initialize if not exists
-            status_data = screen.status_data or {}
+            # Initialize status_data if it doesn't exist
+            screen.status_data = screen.status_data or {}
             
             # Update the component status
-            status_data[component] = {
-                'status': status,
-                'updated_at': str(screen.updated_at)
-            }
-            
-            # Save the updated status_data
-            screen.status_data = status_data
-            screen.save(update_fields=['status_data'])
-            
-            # Update overall screen status based on component statuses
-            if status == 'failed':
-                screen.status = 'failed'
-                screen.save(update_fields=['status'])
-            elif status == 'completed':
-                # Check if all components are completed
-                all_completed = True
-                for comp in ['images', 'voices', 'video']:
-                    if (comp in status_data and 
-                            status_data[comp].get('status') != 'completed'):
-                        all_completed = False
-                        break
+            if component not in screen.status_data:
+                screen.status_data[component] = {}
                 
-                if all_completed:
-                    screen.status = 'completed'
-                    screen.save(update_fields=['status'])
-            elif status == 'processing':
-                screen.status = 'processing'
-                screen.save(update_fields=['status'])
+            screen.status_data[component]['status'] = status
+            
+            # Add error info if provided
+            if error_info and status in ['failed', 'rate_limited']:
+                screen.status_data[component]['error'] = error_info
+                
+                # If this is a rate limit error, add a retry timestamp
+                if error_info.get('error_type') == 'rate_limit':
+                    import time
+                    retry_after = error_info.get('retry_after', 60)  # Default to 60 seconds
+                    screen.status_data[component]['retry_after'] = int(time.time()) + retry_after
+                    
+                # Set the screen error message for display
+                screen.error_message = error_info.get('message', str(error_info))
+            
+            # Save the screen
+            screen.save(update_fields=['status_data', 'error_message' if error_info else 'status_data'])
             
             return True
+        
+        except Screen.DoesNotExist:
+            logger.error(f"Screen with ID {screen_id} not found")
+            return False
         except Exception as e:
             logger.error(f"Error updating screen status: {str(e)}")
             return False
@@ -309,9 +303,58 @@ class ScreenService:
             True if successful, False otherwise
         """
         try:
-            return screen.generate_preview()
+            # First, check if both image and voice are available
+            if not screen.image or not screen.voice:
+                logger.error(f"Cannot generate preview for screen {screen.id}: missing required media")
+                screen.error_message = "Missing required media (image or voice)"
+                screen.status = 'failed' 
+                screen.save(update_fields=['error_message', 'status'])
+                return False
+            
+            # Check if files exist and are accessible
+            try:
+                image_path = screen.image.file.path if hasattr(screen.image.file, 'path') else None
+                voice_path = screen.voice.file.path if hasattr(screen.voice.file, 'path') else None
+                
+                if not image_path or not os.path.exists(image_path):
+                    error_msg = f"Image file not found or inaccessible: {image_path}"
+                    logger.error(f"Screen {screen.id}: {error_msg}")
+                    screen.error_message = error_msg
+                    screen.status = 'failed'
+                    screen.save(update_fields=['error_message', 'status'])
+                    return False
+                    
+                if not voice_path or not os.path.exists(voice_path):
+                    error_msg = f"Voice file not found or inaccessible: {voice_path}"
+                    logger.error(f"Screen {screen.id}: {error_msg}")
+                    screen.error_message = error_msg
+                    screen.status = 'failed'
+                    screen.save(update_fields=['error_message', 'status'])
+                    return False
+                
+                logger.info(f"Generating preview for screen {screen.id} with image: {image_path} and voice: {voice_path}")
+                return screen.generate_preview()
+                
+            except AttributeError as e:
+                logger.error(f"Invalid file attributes for screen {screen.id}: {str(e)}")
+                screen.error_message = f"Invalid file attributes: {str(e)}"
+                screen.status = 'failed'
+                screen.save(update_fields=['error_message', 'status'])
+                return False
+                
         except Exception as e:
-            logger.error(f"Error generating preview for screen {screen.id}: {str(e)}")
+            import traceback
+            error_details = f"{str(e)}\n{traceback.format_exc()}"
+            logger.error(f"Error generating preview for screen {screen.id}: {error_details}")
+            
+            # Update screen with error info
+            try:
+                screen.error_message = str(e)
+                screen.status = 'failed'
+                screen.save(update_fields=['error_message', 'status'])
+            except Exception as save_error:
+                logger.error(f"Error saving screen error: {str(save_error)}")
+                
             return False
 
     @staticmethod

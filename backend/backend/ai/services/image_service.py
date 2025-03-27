@@ -64,6 +64,11 @@ class ImageService:
             
         Returns:
             Tuple containing the image URL and metadata
+            
+        Raises:
+            RateLimitError: When OpenAI rate limits are exceeded
+            ValueError: For invalid parameters
+            Exception: For other errors
         """
         try:
             # Log the request
@@ -104,14 +109,44 @@ class ImageService:
             enhanced_prompt = enhanced_prompt + " " + no_text_instruction
             
             # Make the API call
-            response = self.client.images.generate(
-                model="dall-e-3",
-                prompt=enhanced_prompt,
-                size=size,
-                quality=quality,
-                style=style,
-                n=1
-            )
+            try:
+                response = self.client.images.generate(
+                    model="dall-e-3",
+                    prompt=enhanced_prompt,
+                    size=size,
+                    quality=quality,
+                    style=style,
+                    n=1
+                )
+            except Exception as e:
+                error_message = str(e)
+                # Check for rate limit error
+                if "rate_limit_exceeded" in error_message or "429" in error_message:
+                    logger.warning(f"Rate limit exceeded: {error_message}")
+                    
+                    # Include more details in the error
+                    rate_limit_error = {
+                        "error_type": "rate_limit",
+                        "message": error_message,
+                        "retry_after": 60,  # Suggest retry after 60 seconds
+                        "advice": "The OpenAI rate limit has been exceeded. Wait a minute before trying again."
+                    }
+                    
+                    # Create metadata for the error
+                    metadata = {
+                        "error": rate_limit_error,
+                        "model": "dall-e-3",
+                        "size": size,
+                        "quality": quality,
+                        "style": style,
+                        "prompt_length": len(enhanced_prompt),
+                        "original_prompt": prompt,
+                    }
+                    
+                    raise ValueError(f"Rate limit error: {error_message}", metadata)
+                else:
+                    # Re-raise other errors
+                    raise
             
             # Get the image URL
             image_url = response.data[0].url
@@ -159,6 +194,14 @@ class ImageService:
             
             return image_url, metadata
             
+        except ValueError as e:
+            # Pass through ValueError with metadata if available
+            if len(e.args) > 1 and isinstance(e.args[1], dict):
+                logger.error(f"ValueError in image generation: {e.args[0]}")
+                raise ValueError(e.args[0], e.args[1])
+            else:
+                logger.error(f"ValueError in image generation: {str(e)}")
+                raise
         except Exception as e:
             logger.error(f"Error generating image: {str(e)}")
             raise
