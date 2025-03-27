@@ -64,7 +64,7 @@ class ScreenService:
                     workspace=script.workspace,
                     name=screen_name,
                     script=script,
-                    scene=f"scene_{scene_idx + 1}",
+                    scene=scene_idx + 1,
                     scene_data=scene,
                     status='draft'
                 )

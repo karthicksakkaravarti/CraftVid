@@ -332,6 +332,8 @@ class TranslationService:
             Return ONLY a JSON array containing the translated texts in the same order.
             """
             
+            print("--------------------------------", prompt)
+
             # Call OpenAI API for translation
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -342,7 +344,8 @@ class TranslationService:
                 temperature=0.3,
                 response_format={"type": "json_object"}
             )
-            
+            print("--------------------------------", prompt)
+            print(response.choices[0].message.content)
             # Extract and parse translated content
             translated_content = response.choices[0].message.content
             if not translated_content:

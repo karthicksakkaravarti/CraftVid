@@ -364,18 +364,25 @@
     
 ## Others
 
-- [ ] Step 33: Add translation option for script  
+- [X] Step 33: Add translation option for script  
   - **Task**: Adding translation option to the script
   - **Files**:
     - `backend/backend/templates/workspaces/script_management.html`: Add Translation button for final script, on clickin on script as target langauge, after selelcting  lanugae translate the script(only narrator) to target language
     - `backend/backend/ai/services/translation_service.py`: Change the logic to only change the narrator of script, no batch operation, simply passing script json to   convert the target lanugae(only narrator), create a new script . appending the tagert language end of scipt name at the end 
 
 
-- [ ] Step 34: Create Idea page where we will enter the video ideas 
+- [x] Step 34: Create Idea page where we will enter the video ideas 
   - **Task**: Create Page for adding/editing Idea page
   - **Files**:
-    - `backend/backend/users/tests/test_api.py`: Create user API tests
+    - `backend/backend/workspaces/models.py`: Create model to save the ideas, Ideas will have title and description
+    - `backend/backend/workspaces/views.py`: Create django view for idea page, will have create/delete/edit ideas, Each item will have execute button. were we will convert the ideas to workspace
+  - **User Instructions**: Just add if anything i missed 
 
 
-  - **User Instructions**: Run tests with `python manage.py test`
-
+- [] Step 35: Create celery task for batch processing and queue implementation
+  - **Task**: Once clicked on image generation or voice generation or video generation all should moved queue then execute one by one 
+  - **Files**:
+    - `backend/backend/workspaces/tasks.py`: Keep all the task 
+    - `backend/backend/workspaces/services/queue.py`: Handle all queue realed service
+    - `backend/backend/templates/workspaces/screen_detail.html` : Update the logic to run the task in quque and show in frontend that task queue up and there status even after refresh
+  - **User Instructions**: Just add if anything i missed 

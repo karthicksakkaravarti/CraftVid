@@ -5,14 +5,14 @@ from rest_framework.exceptions import ValidationError
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
 from django.views.generic import (
-    ListView, DetailView, CreateView, UpdateView, DeleteView, View
+    ListView, DetailView, CreateView, UpdateView, DeleteView, View, TemplateView
 )
 from django.urls import reverse_lazy, reverse
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.contrib import messages
 from django.utils.translation import gettext_lazy as _
 from drf_spectacular.utils import extend_schema
-from backend.workspaces.models import Workspace, WorkspaceMember, Media, Screen, Script, Channel
+from backend.workspaces.models import Workspace, WorkspaceMember, Media, Screen, Script, Channel, Idea
 from backend.workspaces.serializers import (
     WorkspaceCreateSerializer,
     WorkspaceDetailSerializer,
@@ -1308,32 +1308,21 @@ class ImageGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
                 scene_data = screen.scene_data
                 
                 # Generate image for the scene
-                image_file = image_service.generate_image(
-                    prompt=prompt or scene_data.get('visual', ''),
-                    size=size,
-                    quality=quality,
-                    style=style
-                )
                 
-                # Create a Media object for the image
-                media = Media.objects.create(
+                media = image_service.generate_and_save_image(
+                    prompt=prompt,
                     workspace=workspace,
                     name=f"Image for {screen.name}",
-                    file_type='image',
-                    file=image_file,
-                    file_size=image_file.size,
-                    metadata={
-                        'prompt': prompt or scene_data.get('visual', ''),
-                        'screen_id': str(screen.id),
-                        'script_id': str(screen.script.id) if screen.script else None,
-                        'generation_params': {
-                            'size': size,
-                            'quality': quality,
-                            'style': style
-                        }
-                    },
-                    uploaded_by=request.user
+                    user=request.user,
+                    size=size,
+                    quality=quality,
+                    style=style,
+                    script_context={
+                        'title': screen.script.title,
+                        'screen_name': screen.name
+                    }
                 )
+
                 
                 # Link the image to the screen
                 screen.image = media
@@ -1354,6 +1343,8 @@ class ImageGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
                 })
                 
             except (json.JSONDecodeError, TypeError):
+                import traceback
+                logger.error(f"Error generating images: {traceback.format_exc()}")
                 # Update screen status to failed
                 ScreenService.update_screen_status(
                     screen_id=str(screen.id),
@@ -2047,10 +2038,8 @@ class ScreenDetailView(LoginRequiredMixin, UserWorkspacePermissionMixin, View):
         if script_id:
             script = get_object_or_404(Script, id=script_id, workspace=workspace)
             # screens = Screen.objects.filter(script=script).order_by('scene')
-            screens = sorted(
-            Screen.objects.filter(script=script),
-            key=lambda x: int(x.scene.split('_')[-1])
-            )
+
+            screens = Screen.objects.filter(script=script).order_by('scene')
             context.update({
                 'script': script,
                 'screens': screens,
@@ -2210,15 +2199,12 @@ class BatchGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
             from django.db.models.expressions import RawSQL
             from django.db.models.functions import Cast
             from django.db.models import IntegerField
-            screens = Screen.objects.filter(script=script).annotate(
-                scene_number=RawSQL("CAST(regexp_replace(scene, '\\D', '', 'g') AS INTEGER)", [])
-            ).order_by('scene_number')
-            screens = list(screens)
-            # if not screens.exists():
-            #     return JsonResponse({
-            #         'success': False,
-            #         'error': _('No screens found for this script.')
-            #     }, status=400)
+            screens = Screen.objects.filter(script=script).order_by('scene')
+            if not screens.exists():
+                return JsonResponse({
+                    'success': False,
+                    'error': _('No screens found for this script.')
+                }, status=400)
             
             # Get generation options from request
             generate_images = request.POST.get('generate_images') == 'true'
@@ -2276,11 +2262,11 @@ class BatchGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
                     # Generate image
                     if generate_images:
                         # Delete old image if it exists
-                        if screen.image:
-                            old_image = screen.image
-                            screen.image = None
-                            screen.save(update_fields=['image'])
-                            old_image.delete()
+                        # if screen.image:
+                        #     old_image = screen.image
+                        #     screen.image = None
+                        #     screen.save(update_fields=['image'])
+                        #     old_image.delete()
                         
                         # Update screen status
                         ScreenService.update_screen_status(
@@ -2298,22 +2284,26 @@ class BatchGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View
                             if not prompt:
                                 errors.append(f"No visual description found for screen '{screen.name}'")
                                 continue
-                                
-                            # Use generate_and_save_image instead of generate_image
-                            media = image_service.generate_and_save_image(
-                                prompt=prompt,
-                                workspace=workspace,
-                                name=f"Image for {screen.name}",
-                                user=request.user,
-                                size=image_size,
-                                quality=image_quality,
-                                style=image_style,
-                                script_context={
-                                    'title': script.title,
-                                    'screen_name': screen.name
-                                }
-                            )
-                            
+                            logger.info('calling generate_and_save_image')
+                            try:
+                                media = image_service.generate_and_save_image(
+                                    prompt=prompt,
+                                    workspace=workspace,
+                                    name=f"Image for {screen.name}",
+                                    user=request.user,
+                                    size=image_size,
+                                    quality=image_quality,
+                                    style=image_style,
+                                    script_context={
+                                        'title': script.title,
+                                        'screen_name': screen.name
+                                    }
+                                )
+                                logger.info(f'Image generated successfully. Media object: {media and media.id}')
+                            except Exception as e:
+                                logger.error(f'Error in generate_and_save_image: {str(e)}')
+                                raise
+                            logger.info(f'media: {media}')
                             # Link the image to the screen
                             screen.image = media
                             screen.save(update_fields=['image'])
@@ -2762,3 +2752,231 @@ class ScriptTranslationView(LoginRequiredMixin, UserWorkspacePermissionMixin, Vi
                 'success': False,
                 'error': _('An unexpected error occurred.')
             }, status=500)
+
+
+class WorkspaceIdeasView(LoginRequiredMixin, UserWorkspacePermissionMixin, DetailView):
+    """View for listing all ideas in a workspace."""
+    model = Workspace
+    template_name = 'workspaces/idea_list.html'
+    context_object_name = 'workspace'
+    pk_url_kwarg = 'workspace_id'
+    
+    def get_context_data(self, **kwargs):
+        """Add ideas to the context."""
+        context = super().get_context_data(**kwargs)
+        # Get ideas for this workspace and unassigned ideas owned by this user
+        workspace_ideas = Idea.objects.filter(workspace=self.object)
+        user_ideas = Idea.objects.filter(workspace__isnull=True, created_by=self.request.user)
+        context['ideas'] = list(workspace_ideas) + list(user_ideas)
+        return context
+
+
+class AllIdeasView(LoginRequiredMixin, TemplateView):
+    """View for listing all user's ideas across workspaces."""
+    template_name = 'workspaces/idea_list.html'
+    
+    def get_context_data(self, **kwargs):
+        """Add ideas to the context."""
+        context = super().get_context_data(**kwargs)
+        # Get all ideas created by this user
+        context['ideas'] = Idea.objects.filter(created_by=self.request.user).order_by('created_at')
+        context['all_ideas_view'] = True
+        return context
+
+
+class IdeaCreateView(LoginRequiredMixin, View):
+    """View for creating a new idea."""
+    
+    def post(self, request, workspace_id=None):
+        """Handle POST request to create a new idea."""
+        try:
+            # Get workspace if workspace_id is provided
+            workspace = None
+            if workspace_id:
+                workspace = get_object_or_404(Workspace, id=workspace_id)
+                
+                # Check if user has permission to the workspace
+                if not (workspace.owner == request.user or workspace.members.filter(id=request.user.id).exists()):
+                    return JsonResponse({
+                        'success': False,
+                        'error': _('You do not have permission to add ideas to this workspace')
+                    }, status=403)
+            
+            # Get form data
+            title = request.POST.get('title')
+            description = request.POST.get('description')
+            
+            # Validate required fields
+            if not title:
+                return JsonResponse({
+                    'success': False,
+                    'error': _('Title is required')
+                }, status=400)
+            
+            # Create idea
+            idea = Idea.objects.create(
+                workspace=workspace,
+                title=title,
+                description=description,
+                created_by=request.user
+            )
+            
+            return JsonResponse({
+                'success': True,
+                'idea_id': str(idea.id),
+                'title': idea.title,
+                'description': idea.description,
+                'created_at': idea.created_at.isoformat(),
+                'message': _('Idea created successfully')
+            })
+                
+        except Exception as e:
+            import traceback
+            logger.error(f"Error creating idea: {str(e)}\n{traceback.format_exc()}")
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+
+
+class IdeaUpdateView(LoginRequiredMixin, View):
+    """View for updating an idea."""
+    
+    def post(self, request, idea_id, workspace_id=None):
+        """Handle POST request to update an idea."""
+        try:
+            # Get the idea
+            idea = get_object_or_404(Idea, id=idea_id, created_by=request.user)
+            
+            # Check workspace if provided
+            if workspace_id:
+                workspace = get_object_or_404(Workspace, id=workspace_id)
+                
+                # Check if user has permission to the workspace
+                if not (workspace.owner == request.user or workspace.members.filter(id=request.user.id).exists()):
+                    return JsonResponse({
+                        'success': False,
+                        'error': _('You do not have permission to update ideas in this workspace')
+                    }, status=403)
+                
+                # Check if idea belongs to workspace
+                if idea.workspace and idea.workspace.id != workspace.id:
+                    return JsonResponse({
+                        'success': False,
+                        'error': _('This idea does not belong to the specified workspace')
+                    }, status=400)
+            
+            # Get form data
+            title = request.POST.get('title')
+            description = request.POST.get('description')
+            
+            # Validate required fields
+            if not title:
+                return JsonResponse({
+                    'success': False,
+                    'error': _('Title is required')
+                }, status=400)
+            
+            # Update idea
+            idea.title = title
+            idea.description = description
+            idea.save()
+            
+            return JsonResponse({
+                'success': True,
+                'idea_id': str(idea.id),
+                'title': idea.title,
+                'description': idea.description,
+                'message': _('Idea updated successfully')
+            })
+                
+        except Exception as e:
+            import traceback
+            logger.error(f"Error updating idea: {str(e)}\n{traceback.format_exc()}")
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+
+
+class IdeaDeleteView(LoginRequiredMixin, View):
+    """View for deleting an idea."""
+    
+    def post(self, request, idea_id, workspace_id=None):
+        """Handle POST request to delete an idea."""
+        try:
+            # Get the idea
+            idea = get_object_or_404(Idea, id=idea_id, created_by=request.user)
+            
+            # Check workspace if provided
+            if workspace_id:
+                workspace = get_object_or_404(Workspace, id=workspace_id)
+                
+                # Check if user has permission to the workspace
+                if not (workspace.owner == request.user or workspace.members.filter(id=request.user.id).exists()):
+                    return JsonResponse({
+                        'success': False,
+                        'error': _('You do not have permission to delete ideas in this workspace')
+                    }, status=403)
+                
+                # Check if idea belongs to workspace
+                if idea.workspace and idea.workspace.id != workspace.id:
+                    return JsonResponse({
+                        'success': False,
+                        'error': _('This idea does not belong to the specified workspace')
+                    }, status=400)
+            
+            # Delete idea
+            idea.delete()
+            
+            return JsonResponse({
+                'success': True,
+                'message': _('Idea deleted successfully')
+            })
+                
+        except Exception as e:
+            import traceback
+            logger.error(f"Error deleting idea: {str(e)}\n{traceback.format_exc()}")
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            }, status=500)
+
+
+class IdeaExecuteView(LoginRequiredMixin, View):
+    """View for executing an idea to create a script."""
+    
+    def post(self, request, idea_id, workspace_id=None):
+        """Handle POST request to execute an idea."""
+        try:
+            if workspace_id:
+                workspace = get_object_or_404(Workspace, id=workspace_id, created_by=request.user)
+                idea = get_object_or_404(Idea, id=idea_id, created_by=request.user)
+            else:
+                idea = get_object_or_404(Idea, id=idea_id, created_by=request.user)
+                # Create a new workspace based on the idea details
+                workspace = Workspace.objects.create(
+                    name=idea.title,
+                    description=idea.description,
+                    owner=request.user
+                )
+                # Update the idea to reference the new workspace
+                idea.workspace = workspace
+                idea.save()
+                idea.delete()
+
+
+            # Return success with redirect to the script management page
+            return JsonResponse({
+                'success': True,
+                'redirect_url': reverse('workspaces:detail', 
+                                       kwargs={'pk': workspace.id})
+            })
+        
+        except Exception as e:
+            import traceback
+            logger.error(f"Error executing idea: {str(e)}\n{traceback.format_exc()}")
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            })

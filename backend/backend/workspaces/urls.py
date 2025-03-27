@@ -29,7 +29,13 @@ from backend.workspaces.views import (
     ChannelViewSet,
     BatchGenerationView,
     MediaListView,
-    ScriptTranslationView
+    ScriptTranslationView,
+    WorkspaceIdeasView,
+    AllIdeasView,
+    IdeaCreateView,
+    IdeaUpdateView,
+    IdeaDeleteView,
+    IdeaExecuteView
 )
 from rest_framework_nested import routers
 
@@ -69,7 +75,7 @@ web_urlpatterns = [
     path('<uuid:workspace_id>/screens/<int:screen_id>/generate-voices/', VoiceGenerationView.as_view(), name='screen_generate_voices'),
     path('<uuid:workspace_id>/screens/<int:screen_id>/generate-video/', VideoGenerationView.as_view(), name='screen_generate_video'),
     path('<uuid:workspace_id>/screens/<int:screen_id>/video-preview/', VideoPreviewView.as_view(), name='video_preview'),
-    path('<uuid:workspace_id>/screens/<int:screen_id>/generate-image/', ImageGenerationView.as_view(), name='screen_generate_image'),
+    # path('<uuid:workspace_id>/screens/<int:screen_id>/generate-image/', ImageGenerationView.as_view(), name='screen_generate_image'),
     path('<uuid:workspace_id>/screens/<int:screen_id>/generate-voice/', VoiceGenerationView.as_view(), name='screen_generate_voice'),
     path('<uuid:workspace_id>/screens/<int:screen_id>/generate-video/', VideoGenerationView.as_view(), name='screen_generate_video'),
 
@@ -90,6 +96,18 @@ web_urlpatterns = [
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/video/', VideoEditorView.as_view(), name='video_editor'),
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/generate-video/', VideoGenerationView.as_view(), name='generate_video'),
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/translate/',ScriptTranslationView.as_view(),name='script_translate'),
+    
+    # Idea views
+    path('ideas/', AllIdeasView.as_view(), name='all_ideas'),
+    path('ideas/create/', IdeaCreateView.as_view(), name='idea_create_standalone'),
+    path('ideas/<int:idea_id>/update/', IdeaUpdateView.as_view(), name='idea_update_standalone'),
+    path('ideas/<int:idea_id>/delete/', IdeaDeleteView.as_view(), name='idea_delete_standalone'),
+    path('ideas/<int:idea_id>/execute/', IdeaExecuteView.as_view(), name='idea_execute_standalone'),
+    path('<uuid:workspace_id>/ideas/', WorkspaceIdeasView.as_view(), name='idea_list'),
+    path('<uuid:workspace_id>/ideas/create/', IdeaCreateView.as_view(), name='idea_create'),
+    path('<uuid:workspace_id>/ideas/<int:idea_id>/update/', IdeaUpdateView.as_view(), name='idea_update'),
+    path('<uuid:workspace_id>/ideas/<int:idea_id>/delete/', IdeaDeleteView.as_view(), name='idea_delete'),
+    path('<uuid:workspace_id>/ideas/<int:idea_id>/execute/', IdeaExecuteView.as_view(), name='idea_execute'),
     
 ]
 

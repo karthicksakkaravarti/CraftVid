@@ -399,33 +399,47 @@ class FFmpegService:
                     # Continue without watermark if there's an error
             
             # Add background music if provided
-            if background_music and os.path.exists(background_music):
-                try:
-                    # Load background music
-                    bg_music = AudioFileClip(background_music)
+            # if background_music and os.path.exists(background_music):
+            #     try:
+            #         # Load background music
+            #         bg_music = AudioFileClip(background_music)
                     
-                    # Loop background music if it's shorter than the video
-                    if bg_music.duration < final_video.duration:
-                        # Calculate how many loops needed
-                        loops_needed = math.ceil(final_video.duration / bg_music.duration)
-                        bg_music = concatenate_audioclips([bg_music] * loops_needed)
+            #         # Loop background music if it's shorter than the video
+            #         if bg_music.duration < final_video.duration:
+            #             # Calculate how many loops needed
+            #             loops_needed = math.ceil(
+            #                 final_video.duration / bg_music.duration
+            #             )
+            #             bg_music = concatenate_audioclips([bg_music] * loops_needed)
                     
-                    # Trim background music if it's longer than the video
-                    if bg_music.duration > final_video.duration:
-                        # Create a new audio clip with the desired duration
-                        bg_music = bg_music.with_duration(final_video.duration)
+            #         # Trim background music if it's longer than the video
+            #         if bg_music.duration > final_video.duration:
+            #             # Create a new audio clip with the desired duration
+            #             bg_music = bg_music.with_duration(final_video.duration)
                     
-                    # Reduce background music volume (using set_volume instead of volumex)
-                    bg_music = bg_music.with_effects([MultiplyVolume(0.2)])
+            #         # Reduce background music volume
+            #         # Try multiple methods to ensure volume reduction works
+            #         try:
+            #             # Method 1: with_effects
+            #             bg_music = bg_music.with_effects([MultiplyVolume(0.3)])
+            #         except Exception:
+            #             try:
+            #                 # Method 2: volumex
+            #                 bg_music = bg_music.volumex(0.3)
+            #             except Exception:
+            #                 # Method 3: direct set_volume
+            #                 bg_music = bg_music.set_volume(0.3)
                     
-                    # Mix audio tracks
-                    if final_video.audio:
-                        final_audio = CompositeAudioClip([final_video.audio, bg_music])
-                        final_video = final_video.with_audio(final_audio)
-                    else:
-                        final_video = final_video.with_audio(bg_music)
-                except Exception as e:
-                    logger.warning(f"Error adding background music: {str(e)}")
+            #         # Mix audio tracks
+            #         if final_video.audio:
+            #             final_audio = CompositeAudioClip(
+            #                 [final_video.audio, bg_music]
+            #             )
+            #             final_video = final_video.with_audio(final_audio)
+            #         else:
+            #             final_video = final_video.with_audio(bg_music)
+            #     except Exception as e:
+            #         logger.warning(f"Error adding background music: {str(e)}")
                     # Continue without background music if there's an error
             
             # Write final video with simpler parameters - like in video_composer.py

@@ -113,7 +113,7 @@ class Media(models.Model):
         max_length=20,
         choices=MEDIA_TYPES
     )
-    file = models.FileField(_('File URL'), upload_to=get_upload_path)
+    file = models.FileField(_('File URL'), upload_to=get_upload_path, max_length=5000)
     file_size = models.BigIntegerField(_('File Size in Bytes'))
     duration = models.FloatField(
         _('Duration in Seconds'), null=True, blank=True)
@@ -170,7 +170,7 @@ class Screen(models.Model):
     workspace = models.ForeignKey(
         'Workspace', on_delete=models.CASCADE, related_name='screens')
     name = models.CharField(max_length=255)
-    scene = models.CharField(max_length=255)
+    scene = models.IntegerField(default=0)
     scene_data = models.JSONField(default=dict)
     status = models.CharField(
         max_length=20, choices=SCREEN_STATUS, default='draft')
@@ -623,3 +623,33 @@ class Script(models.Model):
             logger = logging.getLogger(__name__)
             logger.error(f"Error compiling video for script {self.id}: {str(e)}")
             return False
+
+
+class Idea(models.Model):
+    """Model for storing video ideas."""
+    
+    # Use AutoField instead of UUIDField to match the database schema
+    # id is auto-created by Django, no need to specify it
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    workspace = models.ForeignKey(
+        Workspace, 
+        on_delete=models.CASCADE, 
+        related_name='ideas',
+        null=True,
+        blank=True
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name='created_ideas'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    
+    def __str__(self):
+        return self.title
+    
+    class Meta:
+        ordering = ['-created_at']
