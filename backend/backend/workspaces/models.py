@@ -414,7 +414,7 @@ class Screen(models.Model):
         Generate a preview video from the screen's image and voice.
         
         Args:
-            effect: Visual effect to apply ('ken_burns', 'pulse', 'fade', 'none')
+            effect: Visual effect to apply ('ken_burns', 'pulse', 'fade', 'random', 'none')
             
         Returns:
             bool: True if successful, False otherwise

@@ -474,3 +474,6 @@ MAX_VIDEO_SIZE_MB = 500  # Maximum video file size in MB
 ALLOWED_VIDEO_FORMATS = ["mp4", "mov", "avi", "webm"]
 ALLOWED_AUDIO_FORMATS = ["mp3", "wav", "ogg", "m4a"]
 ALLOWED_IMAGE_FORMATS = ["jpg", "jpeg", "png", "webp"]
+
+CELERY_TASK_SOFT_TIME_LIMIT = 360  # default for all tasks (in seconds)
+CELERY_TASK_TIME_LIMIT = 720       # hard limit, forcibly kills task
