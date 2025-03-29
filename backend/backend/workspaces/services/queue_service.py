@@ -139,7 +139,6 @@ class QueueService:
                         # First, generate the preview
                         preview_task = generate_screen_preview.signature(
                             kwargs={'screen_id': str(screen.id)},
-                            countdown=10  # Small delay to ensure media is ready
                         )
                         video_tasks.append(preview_task)
                 
@@ -148,7 +147,7 @@ class QueueService:
                     # Videos need to wait for images and voices, so we use countdown
                     video_group = group(video_tasks)
                     # Longer countdown to ensure media generation is complete
-                    video_result = video_group.apply_async(countdown=60)
+                    video_result = video_group.apply_async()
                     task_ids['videos'] = [task.id for task in video_result.children]
                     
                     # Update screen status for each task
