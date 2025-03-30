@@ -502,6 +502,128 @@ class Screen(models.Model):
             self.save(update_fields=["error_message", "status", "updated_at"])
             return False
 
+    def generate_final_video(self, title=None, background_audio=None):
+        """
+        Generate a final video directly from all screens in the script without creating previews first.
+        
+        Args:
+            title: Optional title to add at the beginning
+            background_audio: Optional background audio file path
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        from backend.video.services.compilation_service import CompilationService
+        
+        # Ensure this screen is part of a script
+        if not self.script:
+            self.error_message = "Cannot generate final video without a script"
+            self.status = 'failed'
+            self.save(update_fields=['error_message', 'status', 'updated_at'])
+            return False
+        
+        try:
+            # Update status to processing
+            self.status = 'processing'
+            self.save(update_fields=['status', 'updated_at'])
+            
+            # Get all screens in the script with correct ordering
+            screens = self.script.screens.order_by('order')
+            
+            if not screens:
+                raise ValueError("No screens found in the script")
+            
+            # Check if screens have necessary media
+            for screen in screens:
+                if not screen.image or not screen.voice:
+                    raise ValueError(f"Screen {screen.id} is missing image or voice")
+            
+            # Optional title screen setup
+            title_screen = None
+            if title:
+                title_screen = {
+                    "text": title,
+                    "duration": 3.0,
+                }
+            
+            # Optional background audio setup
+            audio_tracks = None
+            if background_audio:
+                audio_tracks = [{
+                    "path": background_audio,
+                    "volume": 0.2,
+                    "loop": True
+                }]
+            
+            # Get channel from script if available for watermark
+            channel = None
+            watermark_path = None
+            if self.script and self.script.channel:
+                channel = self.script.channel
+                if hasattr(channel, "logo") and channel.logo:
+                    try:
+                        watermark_path = channel.logo.path
+                    except Exception as e:
+                        logger.warning(f"Error accessing channel logo: {str(e)}")
+            
+            # Generate the final video directly from screens
+            output_path = CompilationService.generate_final_video_from_screens(
+                screens=list(screens),
+                title_screen=title_screen,
+                watermark_path=watermark_path,
+                watermark_position="bottom-right",
+                watermark_opacity=0.5,
+                audio_tracks=audio_tracks
+            )
+            
+            try:
+                # Create a Media object for the final video
+                from backend.workspaces.models import Media
+                
+                media = Media.objects.create(
+                    workspace=self.workspace,
+                    script=self.script,
+                    screen=self,
+                    name=f"Final Video - {self.script.name}",
+                    file=output_path,
+                    type="video",
+                    metadata={
+                        "generated": True,
+                        "is_final_video": True,
+                        "screens_count": screens.count(),
+                        "duration": 0  # Will be updated by post_save signal
+                    }
+                )
+                
+                # Update the script status
+                self.script.status = 'completed'
+                self.script.save(update_fields=['status', 'updated_at'])
+                
+                # Update this screen
+                self.output_file = output_path
+                self.status = 'completed'
+                self.save(update_fields=['output_file', 'status', 'updated_at'])
+                
+                return True
+                
+            except Exception as e:
+                import traceback
+                error_details = f"Error saving final video: {str(e)}\n{traceback.format_exc()}"
+                logger.error(error_details)
+                self.error_message = f"Error saving final video: {str(e)}"
+                self.status = "failed"
+                self.save(update_fields=["error_message", "status", "updated_at"])
+                return False
+                
+        except Exception as e:
+            import traceback
+            error_details = f"Error generating final video: {str(e)}\n{traceback.format_exc()}"
+            logger.error(f"Error generating final video for script {self.script.id if self.script else 'None'}: {error_details}")
+            self.error_message = str(e)
+            self.status = "failed"
+            self.save(update_fields=["error_message", "status", "updated_at"])
+            return False
+
 
 class Script(models.Model):
     """Model for storing and versioning video scripts."""
@@ -743,32 +865,32 @@ class Script(models.Model):
                 return False
 
             # Get all preview files and check if they exist
-            preview_files = []
-            for screen in screens:
-                if not screen.output_file:
-                    logger.error(f"Screen {screen.id} has no output file")
-                    return False
+            # preview_files = []
+            # for screen in screens:
+            #     if not screen.output_file:
+            #         logger.error(f"Screen {screen.id} has no output file")
+            #         return False
 
-                try:
-                    file_path = screen.output_file.path
-                    if not os.path.exists(file_path):
-                        logger.error(f"Preview file not found: {file_path}")
-                        return False
-                    preview_files.append(file_path)
-                except Exception as e:
-                    logger.error(
-                        f"Error accessing preview file for screen {screen.id}: {str(e)}"
-                    )
-                    return False
+            #     try:
+            #         file_path = screen.output_file.path
+            #         if not os.path.exists(file_path):
+            #             logger.error(f"Preview file not found: {file_path}")
+            #             return False
+            #         preview_files.append(file_path)
+            #     except Exception as e:
+            #         logger.error(
+            #             f"Error accessing preview file for screen {screen.id}: {str(e)}"
+            #         )
+            #         return False
 
-            # If no valid preview files found, exit
-            if not preview_files:
-                logger.error("No valid preview files found")
-                return False
+            # # If no valid preview files found, exit
+            # if not preview_files:
+            #     logger.error("No valid preview files found")
+            #     return False
 
-            logger.info(
-                f"Compiling video from {len(preview_files)} preview files for script {self.id}"
-            )
+            # logger.info(
+            #     f"Compiling video from {len(preview_files)} preview files for script {self.id}"
+            # )
 
             # If there's already an output file, delete it to save space
             if self.output_file:
@@ -785,7 +907,7 @@ class Script(models.Model):
                     logger.warning(f"Error removing old compiled video: {str(e)}")
 
             # Compile the video
-            output_file = compile_video(preview_files, f"script_{self.id}_final.mp4")
+            output_file = compile_video(screens, f"script_{self.id}_final.mp4")
 
             # Save the output file
             self.output_file = output_file

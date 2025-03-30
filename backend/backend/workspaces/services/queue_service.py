@@ -126,52 +126,52 @@ class QueueService:
                             screen.save(update_fields=['status_data'])
             
             # Queue video generation tasks (only if both image and voice are ready or being generated)
-            if generate_videos:
-                video_tasks = []
-                for screen in screens:
-                    # Only add video generation if image and voice are being generated or already exist
-                    should_generate_video = (
-                        (generate_images or screen.image) and 
-                        (generate_voices or screen.voice)
-                    )
+            # if generate_videos:
+            #     video_tasks = []
+            #     for screen in screens:
+            #         # Only add video generation if image and voice are being generated or already exist
+            #         should_generate_video = (
+            #             (generate_images or screen.image) and 
+            #             (generate_voices or screen.voice)
+            #         )
                     
-                    if should_generate_video:
-                        # First, generate the preview
-                        preview_task = generate_screen_preview.signature(
-                            kwargs={'screen_id': str(screen.id)},
-                        )
-                        video_tasks.append(preview_task)
+            #         if should_generate_video:
+            #             # First, generate the preview
+            #             preview_task = generate_screen_preview.signature(
+            #                 kwargs={'screen_id': str(screen.id)},
+            #                 countdown=10
+            #             )
+            #             video_tasks.append(preview_task)
                 
-                # Create a group of tasks to execute in sequence after media generation
-                if video_tasks:
-                    # Videos need to wait for images and voices, so we use countdown
-                    video_group = group(video_tasks)
-                    # Longer countdown to ensure media generation is complete
-                    video_result = video_group.apply_async()
-                    task_ids['videos'] = [task.id for task in video_result.children]
+            #     # Create a group of tasks to execute in sequence after media generation
+            #     if video_tasks:
+            #         # Videos need to wait for images and voices, so we use countdown
+            #         video_group = group(video_tasks)
+            #         # Longer countdown to ensure media generation is complete
+            #         video_result = video_group.apply_async(countdown=60)
+            #         task_ids['videos'] = [task.id for task in video_result.children]
                     
-                    # Update screen status for each task
-                    for i, screen in enumerate(screens):
-                        if i < len(task_ids['videos']):
-                            screen.status_data = screen.status_data or {}
-                            screen.status_data['video'] = {
-                                'status': 'queued',
-                                'task_id': task_ids['videos'][i]
-                            }
-                            screen.save(update_fields=['status_data'])
+            #         # Update screen status for each task
+            #         for i, screen in enumerate(screens):
+            #             if i < len(task_ids['videos']):
+            #                 screen.status_data = screen.status_data or {}
+            #                 screen.status_data['video'] = {
+            #                     'status': 'queued',
+            #                     'task_id': task_ids['videos'][i]
+            #                 }
+            #                 screen.save(update_fields=['status_data'])
                 
-                # Finally, if requested, create a task to generate the final video for the script
-                if video_options and video_options.get('create_final_video', False):
-                    # Use compile_script_video task instead of generate_final_video
-                    final_video_task = compile_script_video.signature(
-                        kwargs={'script_id': script_id},
-                        countdown=120  # Wait for all previews to be generated
-                    )
-                    final_result = final_video_task.apply_async()
-                    task_ids['final_video'] = final_result.id
-                    
-                    # Log that the final video compilation was queued
-                    logger.info(f"Final video compilation queued for script {script_id}")
+            # Finally, if requested, create a task to generate the final video for the script
+            if video_options and video_options.get('create_final_video', False):
+                # Use compile_script_video task instead of generate_final_video
+                final_video_task = compile_script_video.signature(
+                    kwargs={'script_id': script_id},
+                )
+                final_result = final_video_task.apply_async()
+                task_ids['final_video'] = final_result.id
+                
+                # Log that the final video compilation was queued
+                logger.info(f"Final video compilation queued for script {script_id}")
             
             return {
                 'status': 'success',

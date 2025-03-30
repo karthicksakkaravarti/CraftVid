@@ -1,7 +1,6 @@
 import os
 from typing import List, Optional
-from utils.logger import setup_logger
-from utils.file_manager import FileManager
+
 from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 from moviepy.audio.io.AudioFileClip import AudioFileClip
 from moviepy.video.compositing.CompositeVideoClip import concatenate_videoclips, CompositeVideoClip
@@ -13,14 +12,13 @@ from moviepy.video.fx.Crop import Crop  # Import the crop function
 from moviepy.video.fx import Resize, SlideIn, SlideOut
 import random  # Add this import at the top
 # from moviepy.video.fx.all import resize, slide_in, slide_out  # Add these imports at the top
-logger = setup_logger(__name__)
-
+import logging
+logger = logging.getLogger(__name__)
 
 class VideoComposer:
-    def __init__(self, file_manager: FileManager):
+    def __init__(self):
         self.clips = []
-        self.audio_clips = []  # Initialize audio_clips list
-        self.file_manager = file_manager
+        self.audio_clips = [] 
         self.background_audio = None
         self.watermark = None
         logger.info("VideoComposer initialized")
@@ -183,7 +181,7 @@ class VideoComposer:
                     '-level', '4.0',         # Compatibility level
                     '-movflags', '+faststart' # Web playback optimization
                 ],
-                temp_audiofile=self.file_manager.get_path('audio', 'temp.m4a'),
+                # temp_audiofile=self.file_manager.get_path('audio', 'temp.m4a'),
                 remove_temp=True,
                 logger=None
             )
@@ -268,7 +266,7 @@ class VideoComposer:
             audio_clip = AudioFileClip(audio_path)
             if duration is None:
                 duration = audio_clip.duration
-            
+            effect =None
             # Apply storytelling effects
             if effect == 'ken_burns':
                 def ken_burns_effect(t):
