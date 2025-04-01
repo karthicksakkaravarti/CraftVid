@@ -10,7 +10,7 @@
     <div>
       <div class="flex items-center gap-2 text-sm text-gray-500 mb-2">
         <a href="{% url 'workspaces:list' %}" class="hover:text-blue-600">
-          {% translate "Workspaces" %}
+          {% translate "Workspaces" %} ({{ workspace.id }})
         </a>
         <span>/</span>
         <span>{{ workspace.name }}</span>

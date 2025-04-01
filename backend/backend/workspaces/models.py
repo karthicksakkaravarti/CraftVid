@@ -857,12 +857,12 @@ class Script(models.Model):
                 return False
 
             # Check if all screens have previews
-            incomplete_screens = screens.exclude(status="completed")
-            if incomplete_screens.exists():
-                logger.error(
-                    f"Found incomplete screens for script {self.id}: {[str(s.id) for s in incomplete_screens]}"
-                )
-                return False
+            # incomplete_screens = screens.exclude(status="completed")
+            # if incomplete_screens.exists():
+            #     logger.error(
+            #         f"Found incomplete screens for script {self.id}: {[str(s.id) for s in incomplete_screens]}"
+            #     )
+            #     return False
 
             # Get all preview files and check if they exist
             # preview_files = []
@@ -907,7 +907,7 @@ class Script(models.Model):
                     logger.warning(f"Error removing old compiled video: {str(e)}")
 
             # Compile the video
-            output_file = compile_video(screens, f"script_{self.id}_final.mp4")
+            output_file = compile_video(screens, f"script_{self.id}_final.mp4", script=self)
 
             # Save the output file
             self.output_file = output_file

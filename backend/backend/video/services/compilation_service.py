@@ -13,9 +13,9 @@ from django.core.files import File
 from backend.video.services.video_composer import VideoComposer
 
 logger = logging.getLogger(__name__)
+from backend.workspaces.models import Script
 
-
-def compile_video(screens, output_filename: Optional[str] = None) -> File:
+def compile_video(screens, output_filename: Optional[str] = None, script: Optional[Script] = None) -> File:
     """
     Compile multiple preview videos into a single video.
     
@@ -37,15 +37,15 @@ def compile_video(screens, output_filename: Optional[str] = None) -> File:
         output_filename = f"{output_filename}.mp4"
     
     # Create a permanent location for the compiled video
-    persistent_temp_dir = os.path.join(settings.MEDIA_ROOT, 'compiled_videos')
+    persistent_temp_dir = os.path.join(settings.MEDIA_ROOT, 'scripts' , str(script.workspace.id), str(script.id))
     os.makedirs(persistent_temp_dir, exist_ok=True)
     
     persistent_output_path = os.path.join(persistent_temp_dir, output_filename)
         
-    video_composer = VideoComposer()
+    video_composer = VideoComposer(format="shorts")
     # screens is a list of screen objects
     image_paths = [img.image.file.path for img in screens]
-    audio_paths = [img.voice.file.path for img in screens]
+    audio_paths = [img.voice.file.path if (img.voice and img.voice.file) else os.path.join(settings.MEDIA_ROOT, '1-second-of-silence.mp3') for img in screens]
     # Add images and their corresponding audio segments
     for idx, (image_path, audio_path) in enumerate(zip(image_paths, audio_paths)):
         if audio_path and os.path.exists(audio_path):
@@ -80,7 +80,7 @@ def compile_video(screens, output_filename: Optional[str] = None) -> File:
         size_ratio=0.10          # 15% of video width
     )
     video_composer.compose_video(persistent_output_path)
-        
+    return persistent_output_path
         # Create a permanent location for the compiled video
         # persistent_temp_dir = os.path.join(settings.MEDIA_ROOT, 'compiled_videos')
         # os.makedirs(persistent_temp_dir, exist_ok=True)

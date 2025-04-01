@@ -1,5 +1,6 @@
 import os
 from typing import List, Optional
+import math  # Add math import to fix undefined math errors
 
 from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 from moviepy.audio.io.AudioFileClip import AudioFileClip
@@ -16,12 +17,13 @@ import logging
 logger = logging.getLogger(__name__)
 
 class VideoComposer:
-    def __init__(self):
+    def __init__(self, format="landscape"):
         self.clips = []
         self.audio_clips = [] 
         self.background_audio = None
         self.watermark = None
-        logger.info("VideoComposer initialized")
+        self.format = format  # Can be "landscape" (16:9) or "shorts" (9:16)
+        logger.info(f"VideoComposer initialized with format: {format}")
 
     def add_image_sequence(self, image_paths: List[str], durations: List[float]):
         """Add sequence of images with specified durations"""
@@ -112,7 +114,7 @@ class VideoComposer:
             if not self.clips:
                 raise ValueError("No clips added to compose video")
 
-            logger.info(f"Composing video with {len(self.clips)} clips")
+            logger.info(f"Composing video with {len(self.clips)} clips in {self.format} format")
             
             # Ensure output directory exists
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
@@ -120,8 +122,13 @@ class VideoComposer:
             # Concatenate video clips with explicit size setting
             final_video = concatenate_videoclips(self.clips)
             
-            # Force resize to standard resolution if needed
-            final_video = final_video.resized(width=1920, height=1080)
+            # Force resize to appropriate resolution based on format
+            if self.format == "shorts":
+                # YouTube Shorts vertical format (9:16)
+                final_video = final_video.resized(width=1080, height=1920)
+            else:
+                # Standard landscape format (16:9)
+                final_video = final_video.resized(width=1920, height=1080)
             
             # Add watermark if exists
             if self.watermark:
@@ -236,37 +243,40 @@ class VideoComposer:
             # Load and process image with explicit size
             image_clip = ImageClip(image_path)
             
-            # Standardize image size to 1920x1080 while maintaining aspect ratio
-            width, height = image_clip.size
-            target_width = 1920
-            target_height = 1080
-            
-            # Calculate resize dimensions maintaining aspect ratio
-            ratio = min(target_width/width, target_height/height)
-            new_width = int(width * ratio)
-            new_height = int(height * ratio)
-            
-            # Resize image
-            image_clip = image_clip.resized((new_width, new_height))
-            
-            # Center the image if dimensions don't match target
-            if new_width != target_width or new_height != target_height:
-                # Create black background
-                bg = ColorClip((target_width, target_height), color=(0,0,0))
-                # Calculate position to center
-                x = (target_width - new_width) // 2
-                y = (target_height - new_height) // 2
-                # Composite image onto background
-                image_clip = CompositeVideoClip([
-                    bg,
-                    image_clip.with_position((x, y))
-                ])
+            # Standardize image size based on format
+            if self.format == "shorts":
+                target_width = 1080
+                target_height = 1920
+            else:
+                target_width = 1920
+                target_height = 1080
+                
+                # Calculate resize dimensions maintaining aspect ratio
+                width, height = image_clip.size
+                ratio = min(target_width/width, target_height/height)
+                new_width = int(width * ratio)
+                new_height = int(height * ratio)
+                
+                # Resize image
+                image_clip = image_clip.resized((new_width, new_height))
+                
+                # Center the image if dimensions don't match target
+                if new_width != target_width or new_height != target_height:
+                    # Create black background
+                    bg = ColorClip((target_width, target_height), color=(0,0,0))
+                    # Calculate position to center
+                    x = (target_width - new_width) // 2
+                    y = (target_height - new_height) // 2
+                    # Composite image onto background
+                    image_clip = CompositeVideoClip([
+                        bg,
+                        image_clip.with_position((x, y))
+                    ])
             
             # Load audio and get duration
             audio_clip = AudioFileClip(audio_path)
             if duration is None:
                 duration = audio_clip.duration
-            effect =None
             # Apply storytelling effects
             if effect == 'ken_burns':
                 def ken_burns_effect(t):
@@ -327,6 +337,65 @@ class VideoComposer:
         try:
             image_clip = ImageClip(image_path)
             
+            # Standardize image size based on format
+            if self.format == "shorts":
+                target_width = 1080
+                target_height = 1920
+                slide_width = 1080  # For slide effects
+                
+                # For shorts, we'll use a different approach - fill the frame completely
+                # by zooming in and cropping landscape images instead of adding black bars
+                width, height = image_clip.size
+                
+                # Calculate resize dimensions to fill the frame
+                if width / height > target_width / target_height:
+                    # Image is wider than shorts aspect ratio - resize based on height
+                    new_height = target_height
+                    new_width = int(width * (target_height / height))
+                else:
+                    # Image is taller than shorts aspect ratio - resize based on width
+                    new_width = target_width
+                    new_height = int(height * (target_width / width))
+                
+                # Resize image to fill (will be larger than frame in one dimension)
+                image_clip = image_clip.resized((new_width, new_height))
+                
+                # Center crop to target dimensions
+                if new_width > target_width:
+                    x1 = (new_width - target_width) // 2
+                    y1 = 0
+                    image_clip = Crop(image_clip, x1=x1, y1=y1, width=target_width, height=target_height)
+                elif new_height > target_height:
+                    x1 = 0
+                    y1 = (new_height - target_height) // 2
+                    image_clip = Crop(image_clip, x1=x1, y1=y1, width=target_width, height=target_height)
+            else:
+                target_width = 1920
+                target_height = 1080
+                slide_width = 1920  # For slide effects
+                
+                # Calculate resize dimensions maintaining aspect ratio
+                width, height = image_clip.size
+                ratio = min(target_width/width, target_height/height)
+                new_width = int(width * ratio)
+                new_height = int(height * ratio)
+                
+                # Resize image
+                image_clip = image_clip.resized((new_width, new_height))
+                
+                # Center the image if dimensions don't match target
+                if new_width != target_width or new_height != target_height:
+                    # Create black background
+                    bg = ColorClip((target_width, target_height), color=(0,0,0))
+                    # Calculate position to center
+                    x = (target_width - new_width) // 2
+                    y = (target_height - new_height) // 2
+                    # Composite image onto background
+                    image_clip = CompositeVideoClip([
+                        bg,
+                        image_clip.with_position((x, y))
+                    ])
+            
             def ken_burns_effect(t):
                 """Slow zoom and pan effect - good for storytelling"""
                 zoom_factor = 1.0 + (0.15 * t / duration)  # Subtle zoom from 100% to 115%
@@ -344,19 +413,19 @@ class VideoComposer:
                 image_clip = image_clip.resize(lambda t: ken_burns_effect(t))
                 # Add subtle horizontal pan
                 image_clip = image_clip.with_position(
-                    lambda t: ('center', 540 + math.sin(t/2) * 30)  # Subtle vertical movement
+                    lambda t: ('center', target_height/2 + math.sin(t/2) * 30)  # Subtle vertical movement
                 )
             
             elif effect == 'slide_in':
                 # Slide in from right
                 image_clip = image_clip.with_position(
-                    lambda t: (1920 * (1 - t/0.5) if t < 0.5 else 0, 'center')
+                    lambda t: (slide_width * (1 - t/0.5) if t < 0.5 else 0, 'center')
                 )
                 
             elif effect == 'slide_out':
                 # Slide out to left
                 image_clip = image_clip.with_position(
-                    lambda t: (-1920 * (t/0.5) if t < 0.5 else -1920, 'center')
+                    lambda t: (-slide_width * (t/0.5) if t < 0.5 else -slide_width, 'center')
                 )
                 
             elif effect == 'pulse':
