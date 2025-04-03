@@ -80,27 +80,8 @@ def compile_video(screens, output_filename: Optional[str] = None, script: Option
         size_ratio=0.10          # 15% of video width
     )
     video_composer.compose_video(persistent_output_path)
-    return persistent_output_path
-        # Create a permanent location for the compiled video
-        # persistent_temp_dir = os.path.join(settings.MEDIA_ROOT, 'compiled_videos')
-        # os.makedirs(persistent_temp_dir, exist_ok=True)
-        
-        # persistent_output_path = os.path.join(persistent_temp_dir, output_filename)
-        
-        # # Copy the file to the persistent location
-        # import shutil
-        # shutil.copy2(temp_output_path, persistent_output_path)
-        
-        # # Open the file from the persistent location
-        # try:
-        #     f = open(persistent_output_path, 'rb')
-        #     # Create relative path from MEDIA_ROOT
-        #     relative_path = os.path.join('compiled_videos', output_filename)
-        #     # Return a File object
-        #     return File(f, name=relative_path)
-        # except Exception as e:
-        #     logger.error(f"Error opening compiled video file: {str(e)}")
-        #     raise RuntimeError(f"Failed to open compiled video: {str(e)}")
+    return f'{persistent_temp_dir}/{output_filename}'
+
 
 
 def add_intro_outro(
