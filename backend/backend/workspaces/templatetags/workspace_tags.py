@@ -27,12 +27,17 @@ def count_generated_videos(workspace):
 
 @register.filter
 def get_item(dictionary, key):
-    """
-    Template filter to get an item from a dictionary by key.
-    
-    Usage:
-        {{ my_dict|get_item:key_variable }}
-    """
-    if dictionary is None:
-        return None
-    return dictionary.get(key) 
+    """Get an item from a dictionary using a key."""
+    return dictionary.get(key, {})
+
+@register.filter
+def filter_published_scripts(scripts):
+    """Count scripts that have at least one published platform."""
+    published_count = 0
+    for script in scripts:
+        for platform in script.PUBLISHING_PLATFORMS:
+            info = script.publishing_info.get(platform, {})
+            if info.get('status') == 'published':
+                published_count += 1
+                break
+    return published_count 

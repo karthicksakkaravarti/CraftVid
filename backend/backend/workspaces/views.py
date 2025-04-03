@@ -2736,3 +2736,51 @@ class IdeaExecuteView(LoginRequiredMixin, View):
                 'success': False,
                 'error': str(e)
             })
+
+class UpdatePublishingStatusView(LoginRequiredMixin, UserWorkspacePermissionMixin, View):
+    """View for updating script publishing status."""
+    
+    def post(self, request, workspace_id, script_id):
+        workspace = get_object_or_404(Workspace, pk=workspace_id)
+        script = get_object_or_404(Script, pk=script_id, workspace=workspace)
+        
+        platform = request.POST.get('platform')
+        action = request.POST.get('action')
+        
+        if platform not in script.PUBLISHING_PLATFORMS:
+            messages.error(request, _('Invalid publishing platform.'))
+            return redirect('workspaces:detail', pk=workspace_id)
+            
+        if action == 'unlink':
+            # Remove the URL but keep other info
+            publishing_info = script.publishing_info.get(platform, {})
+            if publishing_info:
+                publishing_info.pop('url', None)
+                publishing_info['status'] = 'draft'
+                script.publishing_info[platform] = publishing_info
+                script.save()
+                messages.success(request, _(f'Successfully unlinked {platform} URL.'))
+        elif action == 'delete':
+            # Remove all publishing info for the platform
+            if platform in script.publishing_info:
+                del script.publishing_info[platform]
+                script.save()
+                messages.success(request, _(f'Successfully deleted {platform} publishing information.'))
+        else:
+            # Handle regular update
+            url = request.POST.get('url')
+            notes = request.POST.get('notes')
+            
+            try:
+                script.publishing_info[platform] = {
+                    'url': url,
+                    'notes': notes,
+                    'status': 'published' if url else 'draft',
+                    'updated_at': timezone.now().isoformat()
+                }
+                script.save()
+                messages.success(request, _(f'Successfully updated {platform} publishing information.'))
+            except Exception as e:
+                messages.error(request, str(e))
+        
+        return redirect('workspaces:detail', pk=workspace_id)

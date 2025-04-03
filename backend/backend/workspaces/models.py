@@ -634,6 +634,14 @@ class Script(models.Model):
         ("archived", _("Archived")),
     )
 
+    PUBLISHING_PLATFORMS = [
+        "youtube",
+        "instagram",
+        "facebook",
+        "tiktok",
+        "linkedin"
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     workspace = models.ForeignKey(
         "Workspace", on_delete=models.CASCADE, related_name="scripts"
@@ -650,6 +658,30 @@ class Script(models.Model):
         related_name="scripts",
         null=True,
         blank=True,
+    )
+
+    # Publishing fields
+    publishing_info = models.JSONField(
+        _("Publishing Information"),
+        default=dict,
+        help_text=_("""
+            Stores publishing information for different platforms.
+            Format: {
+                "youtube": {
+                    "status": "published",
+                    "url": "https://youtube.com/...",
+                    "published_date": "2024-03-20T10:00:00Z",
+                    "notes": "Performance notes..."
+                },
+                "instagram": {
+                    "status": "not_published",
+                    "url": null,
+                    "published_date": null,
+                    "notes": ""
+                },
+                ...
+            }
+        """)
     )
 
     # Translation fields
@@ -922,6 +954,100 @@ class Script(models.Model):
             error_message = f"Error compiling video for script {self.id}: {str(e)}\n{traceback.format_exc()}"
             logger.error(error_message)
             return False
+
+    def get_publishing_info(self, platform):
+        """Get publishing information for a specific platform.
+        
+        Args:
+            platform: The social media platform (e.g., 'youtube', 'instagram')
+            
+        Returns:
+            dict: Publishing information for the platform or default structure if not found
+        """
+        if platform not in self.PUBLISHING_PLATFORMS:
+            raise ValueError(f"Invalid platform. Must be one of {self.PUBLISHING_PLATFORMS}")
+            
+        return self.publishing_info.get(platform, {
+            "status": "not_published",
+            "url": None,
+            "published_date": None,
+            "notes": ""
+        })
+
+    def update_publishing_info(self, platform, url=None, notes=None):
+        """Update publishing information for a specific platform.
+        
+        Args:
+            platform: The social media platform (e.g., 'youtube', 'instagram')
+            url: The URL where the video is published
+            notes: Additional notes about the publishing
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if platform not in self.PUBLISHING_PLATFORMS:
+            raise ValueError(f"Invalid platform. Must be one of {self.PUBLISHING_PLATFORMS}")
+            
+        # Initialize platform info if it doesn't exist
+        if platform not in self.publishing_info:
+            self.publishing_info[platform] = {
+                "status": "not_published",
+                "url": None,
+                "published_date": None,
+                "notes": ""
+            }
+            
+        # Update the publishing information
+        platform_info = self.publishing_info[platform]
+        if url:
+            platform_info["url"] = url
+            platform_info["status"] = "published"
+            platform_info["published_date"] = datetime.now().isoformat()
+        if notes is not None:  # Allow empty string notes
+            platform_info["notes"] = notes
+            
+        self.save(update_fields=["publishing_info", "updated_at"])
+        return True
+
+    def remove_publishing_info(self, platform):
+        """Remove publishing information for a specific platform.
+        
+        Args:
+            platform: The social media platform (e.g., 'youtube', 'instagram')
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        if platform not in self.PUBLISHING_PLATFORMS:
+            raise ValueError(f"Invalid platform. Must be one of {self.PUBLISHING_PLATFORMS}")
+            
+        if platform in self.publishing_info:
+            del self.publishing_info[platform]
+            self.save(update_fields=["publishing_info", "updated_at"])
+        return True
+
+    def get_all_publishing_info(self):
+        """Get publishing information for all platforms.
+        
+        Returns:
+            dict: Dictionary containing publishing information for all platforms
+        """
+        # Ensure all platforms have an entry with at least default values
+        info = {}
+        for platform in self.PUBLISHING_PLATFORMS:
+            info[platform] = self.get_publishing_info(platform)
+        return info
+
+    def is_published_anywhere(self):
+        """Check if the script is published on any platform.
+        
+        Returns:
+            bool: True if published on at least one platform, False otherwise
+        """
+        return any(
+            info.get("status") == "published"
+            for info in self.publishing_info.values()
+        )
 
 
 class Idea(models.Model):

@@ -386,3 +386,10 @@
     - `backend/backend/workspaces/services/queue_service.py`: Handle all queue realed service
     - `backend/backend/templates/workspaces/screen_detail.html` : Update the logic to run the task in quque and show in frontend that task queue up and there status even after refresh
   - **User Instructions**: Just add if anything i missed
+
+- [] Step 36: Track of videos being published to Youtube or not, so just introduced new field in Script model to Track it
+- **Task**: One click on Script Screen or manage page or Workspace detail script section. Enable option whether it's uploaded to YouTube or not not only YouTube later, I will add more social media like Instagram, so Facebook, et cetera. So just this to old whether the media has been uploaded or not.
+- **Files**:
+  - `backend/backend/workspaces/models.py`: Keep Turn off, video published or not with link
+  - `backend/backend/templates/workspaces/workspace_detail.html`: Add option to tag whether it's uploaded to YouTube or not and add any comment or and video link is mandatory ?
+- **User Instructions**: Just add if anything i missed any thing

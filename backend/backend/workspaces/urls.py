@@ -35,7 +35,8 @@ from backend.workspaces.views import (
     IdeaCreateView,
     IdeaUpdateView,
     IdeaDeleteView,
-    IdeaExecuteView
+    IdeaExecuteView,
+    UpdatePublishingStatusView
 )
 from rest_framework_nested import routers
 
@@ -85,6 +86,7 @@ web_urlpatterns = [
     path('<uuid:workspace_id>/scripts/', WorkspaceScriptsView.as_view(), name='script_list'),
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/', ScriptManagementView.as_view(), name='script_management'),
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/screens/', ScreenDetailView.as_view(), name='script_screens'),
+    path("<uuid:workspace_id>/scripts/<uuid:script_id>/update-publishing-status/", UpdatePublishingStatusView.as_view(), name="update_publishing_status"),
     
     # Batch generation endpoints
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/batch/', BatchGenerationView.as_view(), name='batch_operations'),

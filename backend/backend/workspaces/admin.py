@@ -71,11 +71,11 @@ class ScreenAdmin(admin.ModelAdmin):
     raw_id_fields = ('workspace',)
 
 
-# @admin.register(Script)
-# class ScriptAdmin(admin.ModelAdmin):
-#     """Admin interface for Script model."""
-#     list_display = ('title', 'workspace', 'version', 'status', 'created_at')
-#     list_filter = ('status', 'created_at')
-#     search_fields = ('title', 'workspace__name', 'topic')
-#     readonly_fields = ('created_at', 'updated_at')
-#     raw_id_fields = ('workspace', 'screen', 'created_by') 
+@admin.register(Script)
+class ScriptAdmin(admin.ModelAdmin):
+    """Admin interface for Script model."""
+    list_display = ('title', 'workspace', 'version', 'status', 'created_at')
+    list_filter = ('status', 'created_at')
+    search_fields = ('title', 'workspace__name', 'topic')
+    readonly_fields = ('created_at', 'updated_at')
+    raw_id_fields = ('workspace', 'created_by') 
