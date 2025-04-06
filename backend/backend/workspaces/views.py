@@ -64,6 +64,7 @@ import uuid
 from django.shortcuts import render
 from backend.workspaces.services.screen_service import ScreenService
 from backend.ai.services.translation_service import TranslationService
+from backend.workspaces.tasks import generate_screen_media, generate_final_video, generate_scene_preview, compile_script_video
 logger = logging.getLogger(__name__)
 
 
@@ -2017,6 +2018,143 @@ class VideoEditorView(LoginRequiredMixin, UserWorkspacePermissionMixin, DetailVi
         
         return context
 
+class ScreenDetail1View(LoginRequiredMixin, UserWorkspacePermissionMixin, View):
+    """View for displaying screen details and managing components."""
+    template_name = 'workspaces/screen_detail1.html'
+    
+    def get(self, request, workspace_id, script_id=None, screen_id=None):
+        """Handle GET request for screen detail or script screens."""
+        workspace = get_object_or_404(Workspace, id=workspace_id)
+        
+        # Check if user has access to the workspace
+        if not (workspace.owner == request.user or 
+                workspace.members.filter(id=request.user.id).exists()):
+            raise Http404("You don't have permission to access this workspace")
+        
+        context = {
+            'workspace': workspace,
+        }
+        
+        # If script_id is provided, show all screens for that script
+        if script_id:
+            script = get_object_or_404(Script, id=script_id, workspace=workspace)
+            # screens = Screen.objects.filter(script=script).order_by('scene')
+
+            screens = Screen.objects.filter(script=script).order_by('scene')
+            context.update({
+                'script': script,
+                'screens': screens,
+                'is_script_view': True,
+            })
+            
+            # Process screen status data for template
+            for screen in screens:
+                # Initialize status_data if it doesn't exist
+                if not screen.status_data:
+                    screen.status_data = {}
+                
+                # Ensure all components have a status
+                for component in ['images', 'voices', 'video']:
+                    if component not in screen.status_data:
+                        screen.status_data[component] = {'status': 'pending'}
+            
+        # If screen_id is provided, show details for that screen
+        elif screen_id:
+            screen = get_object_or_404(Screen, id=screen_id, workspace=workspace)
+            
+            # Initialize status_data if it doesn't exist
+            if not screen.status_data:
+                screen.status_data = {}
+            
+            # Ensure all components have a status
+            for component in ['images', 'voices', 'video']:
+                if component not in screen.status_data:
+                    screen.status_data[component] = {'status': 'pending'}
+            
+            context.update({
+                'screen': screen,
+                'script': screen.script,
+                'is_script_view': False,
+                'available_voices': [
+                    {'id': 'nPczCjzI2devNBz1zQrb', 'name': 'Brain'},
+                    {'id': '21m00Tcm4TlvDq8ikWAM', 'name': 'Rachel'},
+                    {'id': 'AZnzlk1XvdvUeBnXmlld', 'name': 'Domi'},
+                    {'id': 'EXAVITQu4vr4xnSDxMaL', 'name': 'Bella'},
+                    {'id': 'ErXwobaYiN019PkySvjV', 'name': 'Antoni'},
+                    {'id': 'MF3mGyEYCl7XYWbV9V6O', 'name': 'Elli'},
+                    {'id': 'TxGEqnHWrfWFTfGW9XjX', 'name': 'Josh'},
+                    {'id': 'VR6AewLTigWG4xSOukaG', 'name': 'Arnold'},
+                    {'id': 'pNInz6obpgDQGcFmaJgB', 'name': 'Adam'},
+                    {'id': 'yoZ06aMxZJJ28mfd3POQ', 'name': 'Sam'}
+                ]
+            })
+        else:
+            raise Http404("Either script_id or screen_id must be provided")
+        
+        return render(request, self.template_name, context)
+    
+    def post(self, request, workspace_id, script_id=None, screen_id=None):
+        """Handle POST request for screen actions including final video compilation."""
+        try:
+            # Check if user has access to the workspace
+            workspace = get_object_or_404(
+                Workspace.objects.filter(
+                    Q(owner=request.user) | Q(members=request.user)
+                ),
+                id=workspace_id
+            )
+            
+            # If script_id is provided, handle script-level actions
+            if script_id:
+                script = get_object_or_404(Script, id=script_id, workspace=workspace)
+                
+                # Check if final video generation is requested
+                create_final_video = request.POST.get('create_final_video') == 'true'
+                
+                if create_final_video:
+                    # Queue the final video compilation
+                    from backend.workspaces.services.queue_service import QueueService
+                    
+                    result = QueueService.queue_media_generation(
+                        script_id=str(script.id),
+                        user_id=str(request.user.id),
+                        generate_images=False,
+                        generate_voices=False,
+                        generate_videos=True,
+                        video_options={'create_final_video': True}
+                    )
+                    
+                    if result['status'] == 'success':
+                        messages.success(request, _('Final video compilation has been queued.'))
+                    else:
+                        messages.error(request, _(f'Error: {result["message"]}'))
+                    
+                return redirect('workspaces:script_screens', workspace_id=workspace_id, script_id=script_id)
+            
+            # If screen_id is provided, handle screen-level actions
+            elif screen_id:
+                screen = get_object_or_404(Screen, id=screen_id, workspace=workspace)
+                script = screen.script
+                
+                # Add screen-specific actions here if needed
+                
+                return redirect('workspaces:screen_detail', workspace_id=workspace_id, screen_id=screen_id)
+            
+            else:
+                raise Http404("Either script_id or screen_id must be provided")
+                
+        except Exception as e:
+            logger.error(f"Error in screen detail POST: {str(e)}")
+            messages.error(request, str(e))
+            
+            # Determine the appropriate redirect based on what IDs we have
+            if script_id:
+                return redirect('workspaces:script_screens', workspace_id=workspace_id, script_id=script_id)
+            elif screen_id:
+                return redirect('workspaces:screen_detail', workspace_id=workspace_id, screen_id=screen_id)
+            else:
+                return redirect('workspaces:detail', pk=workspace_id)
+            
 class ScreenDetailView(LoginRequiredMixin, UserWorkspacePermissionMixin, View):
     """View for displaying screen details and managing components."""
     template_name = 'workspaces/screen_detail.html'
@@ -2194,11 +2332,12 @@ class ScreenTranslationView(LoginRequiredMixin, UserWorkspacePermissionMixin, Vi
             #     language=target_language
             # ).first()
             
-            if existing_translation:
-                return JsonResponse({
-                    'success': False,
-                    'error': _('A translation in this language already exists.')
-                }, status=400)
+            # Remove the reference to the commented out variable
+            # if existing_translation:
+            #     return JsonResponse({
+            #         'success': False,
+            #         'error': _('A translation in this language already exists.')
+            #     }, status=400)
             
             # Create translated screen
             from backend.workspaces.services.screen_service import ScreenService
@@ -2239,100 +2378,147 @@ class ChannelViewSet(viewsets.ReadOnlyModelViewSet):
         return ChannelSerializer
     
 class BatchGenerationView(LoginRequiredMixin, UserWorkspacePermissionMixin, View):
-    """View for batch generating media for all screens in a script."""
-    
+    """View for batch generation of screens from a script."""
+
     def post(self, request, workspace_id, script_id):
-        """Handle POST request for batch generation."""
+        """Handle batch generation form submission."""
+        from django.http import JsonResponse
+
         try:
-            # Check if user has access to the workspace
-            workspace = get_object_or_404(
-                Workspace.objects.filter(
-                    Q(owner=request.user) | Q(members=request.user)
-                ),
-                id=workspace_id
-            )
-            
-            # Get the script
+            workspace = get_object_or_404(Workspace, id=workspace_id)
             script = get_object_or_404(Script, id=script_id, workspace=workspace)
-            channel = script.channel
-            
-            # Get all screens for this script
-            screens = Screen.objects.filter(script=script).order_by('scene')
+
+            # Get form data
+            generate_images = request.POST.get("generate_images") == "true"
+            generate_voices = request.POST.get("generate_voices") == "true"
+            generate_previews = request.POST.get("generate_previews") == "true"
+            generate_final = request.POST.get("create_final_video") == "true"
+
+            # Get screens
+            screens = Screen.objects.filter(script=script)
+
             if not screens.exists():
-                return JsonResponse({
-                    'success': False,
-                    'error': _('No screens found for this script.')
-                }, status=400)
-            
-            # Get generation options from request
-            generate_images = request.POST.get('generate_images') == 'true'
-            generate_voices = request.POST.get('generate_voices') == 'true'
-            generate_videos = request.POST.get('generate_videos') == 'true'
-            
-            # Prepare options dictionaries for each media type
-            image_options = {
-                'size': request.POST.get('image_size', '1024x1024'),
-                'quality': request.POST.get('image_quality', 'standard'),
-                'style': request.POST.get('image_style', 'vivid')
-            }
-            
-            voice_options = {
-                'voice_id': request.POST.get('voice_id', 'nPczCjzI2devNBz1zQrb'),
-                'model_id': request.POST.get('model_id', 'eleven_multilingual_v2')
-            }
-            
-            video_options = {
-                'quality': request.POST.get('video_quality', 'medium'),
-                'background_music_id': request.POST.get('background_music_id', ''),
-                'create_final_video': request.POST.get('create_final_video') == 'true'
-            }
-            
-            # Check for required API keys
-            if generate_images and not request.user.openai_api_key:
-                return JsonResponse({
-                    'success': False,
-                    'error': _('OpenAI API key not found. Please add your API key in your profile settings.')
-                }, status=400)
-            
-            if generate_voices and not (request.user.elevenlabs_api_key or settings.ELEVENLABS_API_KEY):
-                return JsonResponse({
-                    'success': False,
-                    'error': _('ElevenLabs API key not found. Please add your API key in your profile settings.')
-                }, status=400)
-            
-            # Use the queue service to schedule batch processing
-            from backend.workspaces.services.queue_service import QueueService
-            
-            result = QueueService.queue_media_generation(
-                script_id=str(script.id),
-                user_id=str(request.user.id),
-                generate_images=generate_images,
-                generate_voices=generate_voices,
-                generate_videos=generate_videos,
-                image_options=image_options,
-                voice_options=voice_options,
-                video_options=video_options
-            )
-            
-            if result['status'] == 'success':
-                return JsonResponse({
-                    'success': True,
-                    'message': _('Media generation tasks have been queued. You can check their status on each screen.'),
-                    'task_ids': result['task_ids']
-                })
-            else:
-                return JsonResponse({
-                    'success': False,
-                    'error': result['message']
-                }, status=400)
+                screens, _ = script.generate_screens()
+
+            # For progress tracking
+            task_data = {}
+
+            # Schedule tasks
+            for screen in screens:
+                # Log initial task for tracking
+                task_data[str(screen.id)] = {
+                    "id": str(screen.id),
+                    "name": screen.name,
+                    "components": {}
+                }
                 
-        except Exception as e:
-            logger.error(f"Error in batch generation: {str(e)}")
-            return JsonResponse({
-                'success': False,
-                'error': str(e)
-            }, status=500)
+                if generate_images:
+                    # Initialize status_data if it doesn't exist
+                    if not screen.status_data:
+                        screen.status_data = {}
+                    
+                    # Check status or set to pending if not exists
+                    image_status = screen.status_data.get('images', {}).get('status', 'pending')
+                    
+                    if image_status in ["pending", "failed"]:
+                        # Update status using ScreenService
+                        ScreenService.update_screen_status(str(screen.id), "images", "queued")
+                        
+                        # Schedule task
+                        task = generate_screen_media.delay(
+                            str(screen.id), "image", str(request.user.id)
+                        )
+                        
+                        # Store the task ID for tracking
+                        task_data[str(screen.id)]["components"]["image"] = {
+                            "task_id": task.id,
+                            "status": "queued"
+                        }
+                    
+                if generate_voices:
+                    # Initialize status_data if it doesn't exist
+                    if not screen.status_data:
+                        screen.status_data = {}
+                    
+                    # Check status or set to pending if not exists
+                    voice_status = screen.status_data.get('voices', {}).get('status', 'pending')
+                    
+                    if voice_status in ["pending", "failed", "processing"]:
+                        # Update status using ScreenService
+                        ScreenService.update_screen_status(str(screen.id), "voices", "queued")
+                        
+                        # Schedule task
+                        task = generate_screen_media.delay(
+                            str(screen.id), "voice", str(request.user.id)
+                        )
+                        
+                        # Store the task ID for tracking
+                        task_data[str(screen.id)]["components"]["audio"] = {
+                            "task_id": task.id,
+                            "status": "queued"
+                        }
+                
+                if generate_previews:
+                    # Initialize status_data if it doesn't exist
+                    if not screen.status_data:
+                        screen.status_data = {}
+                    
+                    # Check status or set to pending if not exists
+                    preview_status = screen.status_data.get('preview', {}).get('status', 'pending')
+                    
+                    if preview_status in ["pending", "failed"]:
+                        # Update status using ScreenService
+                        ScreenService.update_screen_status(str(screen.id), "preview", "queued")
+                        
+                        # Schedule task
+                        task = generate_screen_media.delay(
+                            str(screen.id), "preview", str(request.user.id)
+                        )
+                        
+                        # Store the task ID for tracking
+                        task_data[str(screen.id)]["components"]["preview"] = {
+                            "task_id": task.id,
+                            "status": "queued"
+                        }
             
+            # Schedule final video task if needed
+            if generate_final:
+                # Find any screen to use for the final video
+                final_screen = screens.first()
+                if final_screen:
+                    # Initialize status_data if it doesn't exist
+                    if not final_screen.status_data:
+                        final_screen.status_data = {}
+                    
+                    # Update status using ScreenService
+                    ScreenService.update_screen_status(str(final_screen.id), "video", "queued")
+                    
+                    # Schedule task
+                    task = compile_script_video.delay(str(script.id))
+                    
+                    # Store the task ID for tracking
+                    task_data[str(final_screen.id)]["components"]["video"] = {
+                        "task_id": task.id,
+                        "status": "queued"
+                    }
+            
+            # Store task data in the session for tracking
+            request.session[f"batch_generation_{script_id}"] = task_data
+            
+            return JsonResponse({
+                "success": True,
+                "message": ("Batch generation tasks have been scheduled."),
+                "task_data": task_data
+            })
+
+        except Exception as e:
+            import traceback
+            logger.error(f"Error in batch generation: {str(e)}\n{traceback.format_exc()}")
+            return JsonResponse({
+                "success": False,
+                "error": str(e)
+            })
+
     def get(self, request, workspace_id, script_id):
         """Handle GET request to retrieve status of batch generation tasks."""
         try:

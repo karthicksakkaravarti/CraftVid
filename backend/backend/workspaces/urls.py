@@ -36,7 +36,8 @@ from backend.workspaces.views import (
     IdeaUpdateView,
     IdeaDeleteView,
     IdeaExecuteView,
-    UpdatePublishingStatusView
+    UpdatePublishingStatusView,
+    ScreenDetail1View
 )
 from rest_framework_nested import routers
 
@@ -70,7 +71,7 @@ web_urlpatterns = [
     path('<uuid:pk>/delete/', WorkspaceDeleteView.as_view(), name='delete'),
     
     # Screen management views
-    path('<uuid:workspace_id>/screens/<int:screen_id>/', ScreenDetailView.as_view(), name='screen_detail'),
+    path('<uuid:workspace_id>/screens/<int:screen_id>/', ScreenDetail1View.as_view(), name='screen_detail'),
     path('<uuid:workspace_id>/screens/<int:screen_id>/translate/', ScreenTranslationView.as_view(), name='screen_translate'),
     path('<uuid:workspace_id>/screens/<int:screen_id>/generate-image/', ImageGenerationView.as_view(), name='screen_generate_images'),
     path('<uuid:workspace_id>/screens/<int:screen_id>/generate-voices/', VoiceGenerationView.as_view(), name='screen_generate_voices'),

@@ -393,3 +393,11 @@
   - `backend/backend/workspaces/models.py`: Keep Turn off, video published or not with link
   - `backend/backend/templates/workspaces/workspace_detail.html`: Add option to tag whether it's uploaded to YouTube or not and add any comment or and video link is mandatory ?
 - **User Instructions**: Just add if anything i missed any thing
+
+- [] Step 37: Create a live progress of image, voice, and video generation Batch Generation process
+- **Task**: Okay, so the issue is right now, not able to track the image, voice and video generation progress because it's been generating in the in backend using celery, so I need some way to see that what is the progress being happening? So probably some  some kind of socket implementation or any kind of live implementation. Required to enable. what you thing ? in Batch Generation i want to show the status. 
+- **Files**:
+  - `backend/backend/templates/workspaces/screen_detail.html`: When I click on batch generate Some live loader or are kind of skeleton process and their percentage shows in each section
+
+- **User Instructions**: Just add if anything i missed any thing
+

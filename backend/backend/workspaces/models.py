@@ -9,7 +9,7 @@ from django.conf import settings
 from django.utils.translation import gettext_lazy as _
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
-
+from backend.users.models import User
 
 logger = logging.getLogger(__name__)
 
@@ -222,7 +222,9 @@ class Screen(models.Model):
         """
         from backend.ai.services.image_service import ImageService
         from backend.workspaces.services.screen_service import ScreenService
-
+        #if user is str get user from id
+        if isinstance(user, str):
+            user = User.objects.get(id=user)
         # Get the visual description from scene_data
         visual_prompt = self.scene_data.get("visual", "")
         if not visual_prompt:
@@ -237,7 +239,7 @@ class Screen(models.Model):
                 status="failed",
                 error_info=error_info,
             )
-            raise ValueError("No visual description found in scene data")
+            return {"status": "failed", "error": "No visual description found in scene data"}
 
         try:
             # Use the ImageService to generate and save the image
@@ -265,7 +267,7 @@ class Screen(models.Model):
                 screen_id=str(self.id), component="images", status="completed"
             )
 
-            return media
+            return {"status": "success", "message": "Image generated successfully"}
 
         except ValueError as e:
             # Check if this is a rate limit error with metadata
@@ -282,6 +284,7 @@ class Screen(models.Model):
                     status="rate_limited",
                     error_info=error_info,
                 )
+                return {"status": "failed", "error": "Rate limit error generating image for screen"}
             else:
                 # Handle other ValueError
                 error_info = {
@@ -295,7 +298,7 @@ class Screen(models.Model):
                     status="failed",
                     error_info=error_info,
                 )
-            raise
+            return {"status": "failed", "error": "An unexpected error occurred. Please try again later."}
 
         except Exception as e:
             # Handle general exceptions
@@ -317,7 +320,7 @@ class Screen(models.Model):
             logger.error(
                 f"Error generating image for screen {self.id}: {error_message}"
             )
-            raise
+            return {"status": "failed", "error": "An unexpected error occurred. Please try again later."}
 
     def generate_voice(self, user=None):
         """Generate a voice-over for this screen based on scene_data['narrator'].
@@ -331,11 +334,12 @@ class Screen(models.Model):
             Media: The generated voice media object
         """
         from backend.ai.services.elevenlabs_service import ElevenLabsService
-
+        if isinstance(user, str):
+            user = User.objects.get(id=user)
         # Get the narrator text from scene_data
         narrator_text = self.scene_data.get("narrator", "")
         if not narrator_text:
-            raise ValueError("No narrator text found in scene data")
+            return {"status": "failed", "error": "No narrator text found in scene data"}
 
         # Use the ElevenLabsService to generate the voice
         api_key = user.elevenlabs_api_key if user else None
@@ -382,7 +386,7 @@ class Screen(models.Model):
         self.voice = media
         self.save(update_fields=["voice", "updated_at"])
 
-        return media
+        return {"status": "success", "message": "Voice generated successfully"}
 
     def link_media(self, media_id, media_type):
         """Link an existing media object to this screen.

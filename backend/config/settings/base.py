@@ -62,6 +62,7 @@ WSGI_APPLICATION = "config.wsgi.application"
 # APPS
 # ------------------------------------------------------------------------------
 DJANGO_APPS = [
+    "daphne",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
@@ -99,9 +100,10 @@ LOCAL_APPS = [
     "backend.video",
     "backend.publishing",
     "backend.video_templates",
+    "backend.channels",
 ]
 # https://docs.djangoproject.com/en/dev/ref/settings/#installed-apps
-INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
+INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS 
 
 # MIGRATIONS
 # ------------------------------------------------------------------------------
@@ -478,3 +480,15 @@ ALLOWED_IMAGE_FORMATS = ["jpg", "jpeg", "png", "webp"]
 # Set to None for infinite time limits
 CELERY_TASK_SOFT_TIME_LIMIT = None  # No soft time limit (infinite)
 CELERY_TASK_TIME_LIMIT = None       # No hard time limit (infinite)
+
+# Configure Channels
+ASGI_APPLICATION = "config.asgi.application"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [env("REDIS_URL", default="redis://localhost:6379/0")],
+        },
+    },
+}

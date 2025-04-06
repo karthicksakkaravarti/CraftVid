@@ -12,179 +12,11 @@
 {% endblock title %}
 
 {% block extra_head %}
-<script src="{% static 'js/progress-tracker.js' %}"></script>
 <script>
-  let progressTracker;
-  
-  // Initialize progress tracker
-  function initProgressTracker() {
-    progressTracker = new ProgressTracker('{{ workspace.id }}', { debug: true });
-    
-    // Listen for progress events
-    progressTracker.addEventListener('progress', handleProgressUpdate);
-    
-    // Listen for connection events
-    progressTracker.addEventListener('connected', () => {
-      console.log('WebSocket connection established');
-    });
-    
-    progressTracker.addEventListener('disconnected', () => {
-      console.log('WebSocket connection closed');
-    });
-    
-    progressTracker.addEventListener('error', (data) => {
-      console.error('WebSocket error:', data.error);
-    });
-    
-    // Connect to WebSocket server
-    progressTracker.connect();
-  }
-  
-  // Handle progress updates from WebSocket
-  function handleProgressUpdate(data) {
-    console.log('Progress update:', data);
-    
-    // Update the UI based on the progress update
-    if (data.entity_id) {
-      // Update progress bar if it exists
-      const progressBar = document.getElementById(`progress-${data.task_type}-${data.entity_id}`);
-      if (progressBar) {
-        updateProgressBar(progressBar, data.progress, data.status);
-      }
-      
-      // Update status text if it exists
-      const statusText = document.getElementById(`status-${data.task_type}-${data.entity_id}`);
-      if (statusText) {
-        statusText.textContent = data.message;
-      }
-      
-      // Update status badge
-      updateStatusBadge(data.entity_id, data.task_type, data.status);
-      
-      // If task completed or failed, refresh component data
-      if (data.status === 'completed' || data.status === 'failed') {
-        setTimeout(() => {
-          refreshScreenData(data.entity_id);
-        }, 1000);
-      }
-    }
-  }
-  
-  // Update progress bar
-  function updateProgressBar(progressBar, progress, status) {
-    const bar = progressBar.querySelector('.progress-bar-fill');
-    if (bar) {
-      bar.style.width = `${progress}%`;
-      
-      // Update color based on status
-      bar.classList.remove('bg-blue-500', 'bg-yellow-500', 'bg-green-500', 'bg-red-500');
-      
-      if (status === 'processing') {
-        bar.classList.add('bg-blue-500');
-      } else if (status === 'completed') {
-        bar.classList.add('bg-green-500');
-      } else if (status === 'failed') {
-        bar.classList.add('bg-red-500');
-      } else {
-        bar.classList.add('bg-yellow-500');
-      }
-    }
-  }
-  
-  // Update status badge
-  function updateStatusBadge(screenId, componentType, status) {
-    const screenEl = document.getElementById(`screen-${screenId}`);
-    if (!screenEl) return;
-    
-    // Map task_type to component name
-    const componentMap = {
-      'image_generation': 'image',
-      'voice_generation': 'audio',
-      'video_generation': 'video',
-      'preview_generation': 'preview',
-      'scene_preview': 'preview'
-    };
-    
-    const component = componentMap[componentType] || componentType;
-    
-    // Update component status
-    const componentEl = screenEl.querySelector(`.${component}-status`);
-    if (componentEl) {
-      componentEl.textContent = status;
-      
-      // Update component status class
-      componentEl.className = `${component}-status px-2 py-0.5 text-xs rounded-full`;
-      if (status === 'pending') componentEl.classList.add('bg-gray-100', 'text-gray-800');
-      if (status === 'queued') componentEl.classList.add('bg-blue-100', 'text-blue-800');
-      if (status === 'processing') componentEl.classList.add('bg-yellow-100', 'text-yellow-800');
-      if (status === 'completed') componentEl.classList.add('bg-green-100', 'text-green-800');
-      if (status === 'failed') componentEl.classList.add('bg-red-100', 'text-red-800');
-      if (status === 'cancelled') componentEl.classList.add('bg-gray-500', 'text-white');
-    }
-  }
-  
-  // Refresh screen data
-  function refreshScreenData(screenId) {
-    fetch(`/workspaces/{{ workspace.id }}/screens/${screenId}/`, {
-      method: 'GET',
-      headers: {
-        'X-Requested-With': 'XMLHttpRequest',
-        'Accept': 'application/json'
-      }
-    })
-    .then(response => response.json())
-    .then(data => {
-      if (data.success) {
-        updateScreenDisplay(data.screen);
-      }
-    })
-    .catch(error => console.error('Error refreshing screen data:', error));
-  }
-  
-  // Update screen display
-  function updateScreenDisplay(screenData) {
-    const screenEl = document.getElementById(`screen-${screenData.id}`);
-    if (!screenEl) return;
-    
-    // Update image section if available
-    if (screenData.image_file) {
-      const imageContainer = screenEl.querySelector('.screen-image-container');
-      if (imageContainer) {
-        imageContainer.innerHTML = `<img src="${screenData.image_file}" alt="${screenData.name}" class="w-full h-auto rounded">`;
-      }
-    }
-    
-    // Update audio section if available
-    if (screenData.audio_file) {
-      const audioContainer = screenEl.querySelector('.screen-audio-container');
-      if (audioContainer) {
-        audioContainer.innerHTML = `
-          <audio controls class="w-full">
-            <source src="${screenData.audio_file}" type="audio/mpeg">
-            Your browser does not support the audio element.
-          </audio>
-        `;
-      }
-    }
-    
-    // Update preview section if available
-    if (screenData.preview_file) {
-      const previewContainer = screenEl.querySelector('.screen-preview-container');
-      if (previewContainer) {
-        previewContainer.innerHTML = `
-          <video controls class="w-full rounded">
-            <source src="${screenData.preview_file}" type="video/mp4">
-            Your browser does not support the video element.
-          </video>
-        `;
-      }
-    }
-  }
-  
-  // Old polling function - keeping for fallback if WebSockets not available
+  // Task polling function for updating task status
   function pollTaskStatus(scriptId) {
-    // Only poll if we're on the script screens view and WebSocket is not connected
-    if (!scriptId || (progressTracker && progressTracker.isConnected)) return;
+    // Only poll if we're on the script screens view
+    if (!scriptId) return;
     
     fetch(`/workspaces/{{ workspace.id }}/scripts/${scriptId}/batch/`, {
       method: 'GET',
@@ -252,114 +84,107 @@
     }
   }
   
-  // Initialize and connect progress tracker
+  // Initialize task polling when page loads
   document.addEventListener('DOMContentLoaded', function() {
-    initProgressTracker();
-    
     {% if is_script_view and script %}
-    // Start polling as fallback
+    // Start polling for script view
     pollTaskStatus('{{ script.id }}');
-    {% endif %}
     
-    // Other initialization
-    // setupImageModals();
-    // setupAudioPlayers();
-    // setupVideoPlayers();
+    // Handle generate all button
+    const generateAllBtn = document.getElementById('generateAllBtn');
+    const batchOptions = document.getElementById('batchOptions');
+    const startBatchBtn = document.getElementById('startBatchBtn');
+    const cancelOptionsBtn = document.getElementById('cancelOptionsBtn');
     
-    // Setup batch generate buttons if present
-    const batchGenerateBtn = document.getElementById('batchGenerateBtn');
-    if (batchGenerateBtn) {
-      batchGenerateBtn.addEventListener('click', function() {
-        openBatchOptions();
+    if (generateAllBtn) {
+      generateAllBtn.addEventListener('click', function() {
+        batchOptions.classList.remove('hidden');
       });
     }
     
-    // Setup individual generate buttons
-    const generateButtons = document.querySelectorAll('.generate-btn');
-    generateButtons.forEach(function(btn) {
-      btn.addEventListener('click', function() {
-        const mediaType = this.dataset.mediaType;
-        const screenId = this.dataset.screenId;
-        generateMedia(screenId, mediaType);
+    if (cancelOptionsBtn) {
+      cancelOptionsBtn.addEventListener('click', function() {
+        batchOptions.classList.add('hidden');
       });
-    });
-
-    {% if is_script_view %}
-    // Script screens view JS
-    
-    // Show/hide batch options
-    function openBatchOptions() {
-      document.getElementById('batchOptionsModal').classList.remove('hidden');
     }
     
-    document.getElementById('closeBatchOptions').addEventListener('click', function() {
-      document.getElementById('batchOptionsModal').classList.add('hidden');
-    });
-    
-    document.getElementById('startBatchGeneration').addEventListener('click', function() {
-      // Get selected options
-      const generateImages = document.getElementById('generateImages').checked;
-      const generateVoices = document.getElementById('generateVoices').checked;
-      const generatePreviews = document.getElementById('generatePreviews').checked;
-      const generateFinal = document.getElementById('generateFinal').checked;
-      
-      // Validate at least one option is selected
-      if (!generateImages && !generateVoices && !generatePreviews && !generateFinal) {
-        showToast('Please select at least one generation option', 'error');
-        return;
-      }
-      
-      // Close modal
-      document.getElementById('batchOptionsModal').classList.add('hidden');
-      
-      // Show loading indicator
-      showLoadingOverlay('Starting batch generation...');
-      
-      // Submit batch generation request
-      fetch(`/workspaces/{{ workspace.id }}/scripts/{{ script.id }}/batch/`, {
-        method: 'POST',
-        headers: {
-          'X-CSRFToken': '{{ csrf_token }}',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: new URLSearchParams({
-          'generate_images': generateImages,
-          'generate_voices': generateVoices,
-          'generate_previews': generatePreviews,
-          'generate_final': generateFinal
+    if (startBatchBtn) {
+      startBatchBtn.addEventListener('click', function() {
+        // Get form data
+        const form = document.getElementById('batchGenerationForm');
+        const formData = new FormData(form);
+        
+        // Disable button to prevent double submission
+        startBatchBtn.disabled = true;
+        startBatchBtn.textContent = '{% translate "Processing..." %}';
+        
+        // Submit the form via fetch API
+        fetch(`/workspaces/{{ workspace.id }}/scripts/{{ script.id }}/batch/`, {
+          method: 'POST',
+          headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+          },
+          body: formData
         })
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          showToast(data.message, 'success');
-          // Hide loading and refresh after a short delay
-          setTimeout(() => {
-            hideLoadingOverlay();
-            location.reload();
-          }, 1000);
-        } else {
-          hideLoadingOverlay();
-          showToast(data.error || 'An error occurred', 'error');
-        }
-      })
-      .catch(error => {
-        hideLoadingOverlay();
-        showToast('Failed to start batch generation', 'error');
-        console.error('Error:', error);
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            // Hide the form
+            batchOptions.classList.add('hidden');
+            
+            // Show success message
+            alert(data.message);
+            
+            // Start polling for task status
+            pollTaskStatus('{{ script.id }}');
+          } else {
+            // Show error message
+            alert(`{% translate "Error" %}: ${data.error}`);
+          }
+          
+          // Re-enable button
+          startBatchBtn.disabled = false;
+          startBatchBtn.textContent = '{% translate "Start Generation" %}';
+        })
+        .catch(error => {
+          console.error('Error submitting batch generation form:', error);
+          
+          // Show error message
+          alert('{% translate "An error occurred while submitting the form. Please try again." %}');
+          
+          // Re-enable button
+          startBatchBtn.disabled = false;
+          startBatchBtn.textContent = '{% translate "Start Generation" %}';
+        });
       });
-    });
-    {% else %}
-    // Individual screen view JS
-    const screenId = '{{ screen.id }}';
+    }
     
-    // Add listener for individual screen generation
-    document.querySelectorAll('.generate-btn').forEach(button => {
-      button.addEventListener('click', function() {
-        const mediaType = this.dataset.mediaType;
-        generateMedia(screenId, mediaType);
+    // Handle cancel batch button
+    const cancelBatchBtn = document.getElementById('cancelBatchBtn');
+    if (cancelBatchBtn) {
+      cancelBatchBtn.addEventListener('click', function() {
+        if (confirm('{% translate "Are you sure you want to cancel all queued generation tasks?" %}')) {
+          fetch(`/workspaces/{{ workspace.id }}/scripts/{{ script.id }}/batch/`, {
+            method: 'DELETE',
+            headers: {
+              'X-CSRFToken': '{{ csrf_token }}',
+              'Content-Type': 'application/json'
+            }
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.success) {
+              alert(data.message);
+              // Refresh the page after cancellation
+              window.location.reload();
+            } else {
+              alert(`{% translate "Error" %}: ${data.error}`);
+            }
+          })
+          .catch(error => console.error('Error cancelling tasks:', error));
+        }
       });
-    });
+    }
     {% endif %}
   });
 </script>
@@ -408,6 +233,18 @@
         </div>
       </div>
     </div>
+
+    <!-- Final Video Form -->
+    <!-- <div class="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+      <h2 class="text-lg font-bold text-gray-900 mb-4">{% translate "Final Video Generation" %}</h2>
+      <p class="text-sm text-gray-600 mb-4">{% translate "Combine all scenes into a final video compilation." %}</p>
+      
+      <form method="post" action="{% url 'workspaces:script_screens' workspace_id=workspace.id script_id=script.id %}">
+        {% csrf_token %}
+        <input type="hidden" name="create_final_video" value="true" />
+        <button type="submit" class="btn-primary">{% translate "Generate Final Video" %}</button>
+      </form>
+    </div> -->
 
     <!-- Batch Generation Options -->
     <div id="batchOptions" class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6 hidden">
@@ -527,117 +364,9 @@
     <!-- Screens List -->
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
       {% for screen in screens %}
-        <div id="screen-{{ screen.id }}" class="bg-white rounded-xl shadow-sm border border-gray-200 mb-8">
-          <div class="p-6">
-            <div class="flex justify-between items-start mb-4">
-              <div>
-                <h3 class="text-lg font-semibold">{{ screen.name }}</h3>
-                <p class="text-gray-600 text-sm mt-1">{{ screen.description|truncatechars:100 }}</p>
-              </div>
-              <div class="flex items-center gap-2">
-                <span class="screen-status px-2 py-1 text-xs rounded-full
-                  {% if screen.status == 'draft' %}bg-gray-100 text-gray-800{% endif %}
-                  {% if screen.status == 'ready' %}bg-blue-100 text-blue-800{% endif %}
-                  {% if screen.status == 'processing' %}bg-yellow-100 text-yellow-800{% endif %}
-                  {% if screen.status == 'completed' %}bg-green-100 text-green-800{% endif %}
-                  {% if screen.status == 'failed' %}bg-red-100 text-red-800{% endif %}
-                ">
-                  {{ screen.status|title }}
-                </span>
-              </div>
-            </div>
-            
-            <!-- Progress Bars Section - New Addition -->
-            <div class="space-y-3 mb-4">
-              <!-- Image Generation Progress -->
-              <div id="progress-image_generation-{{ screen.id }}" class="progress-container hidden">
-                <div class="flex justify-between text-xs text-gray-600 mb-1">
-                  <span>{% translate "Image Generation" %}</span>
-                  <span id="status-image_generation-{{ screen.id }}">{% translate "Waiting..." %}</span>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                  <div class="progress-bar-fill bg-blue-500 h-2.5 rounded-full" style="width: 0%"></div>
-                </div>
-              </div>
-              
-              <!-- Voice Generation Progress -->
-              <div id="progress-voice_generation-{{ screen.id }}" class="progress-container hidden">
-                <div class="flex justify-between text-xs text-gray-600 mb-1">
-                  <span>{% translate "Voice Generation" %}</span>
-                  <span id="status-voice_generation-{{ screen.id }}">{% translate "Waiting..." %}</span>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                  <div class="progress-bar-fill bg-blue-500 h-2.5 rounded-full" style="width: 0%"></div>
-                </div>
-              </div>
-              
-              <!-- Preview Generation Progress -->
-              <div id="progress-preview_generation-{{ screen.id }}" class="progress-container hidden">
-                <div class="flex justify-between text-xs text-gray-600 mb-1">
-                  <span>{% translate "Preview Generation" %}</span>
-                  <span id="status-preview_generation-{{ screen.id }}">{% translate "Waiting..." %}</span>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                  <div class="progress-bar-fill bg-blue-500 h-2.5 rounded-full" style="width: 0%"></div>
-                </div>
-              </div>
-              
-              <!-- Video Generation Progress -->
-              <div id="progress-video_generation-{{ screen.id }}" class="progress-container hidden">
-                <div class="flex justify-between text-xs text-gray-600 mb-1">
-                  <span>{% translate "Video Generation" %}</span>
-                  <span id="status-video_generation-{{ screen.id }}">{% translate "Waiting..." %}</span>
-                </div>
-                <div class="w-full bg-gray-200 rounded-full h-2.5">
-                  <div class="progress-bar-fill bg-blue-500 h-2.5 rounded-full" style="width: 0%"></div>
-                </div>
-              </div>
-            </div>
-            
-            <!-- Component Status -->
-            <div class="flex flex-wrap gap-2 mb-6 items-center">
-              <div class="flex items-center">
-                <span class="text-gray-600 text-sm mr-2">{% translate "Image:" %}</span>
-                <span class="image-status px-2 py-0.5 text-xs rounded-full
-                  {% if screen.status_data.images.status == 'pending' %}bg-gray-100 text-gray-800{% endif %}
-                  {% if screen.status_data.images.status == 'queued' %}bg-blue-100 text-blue-800{% endif %}
-                  {% if screen.status_data.images.status == 'processing' %}bg-yellow-100 text-yellow-800{% endif %}
-                  {% if screen.status_data.images.status == 'completed' %}bg-green-100 text-green-800{% endif %}
-                  {% if screen.status_data.images.status == 'failed' %}bg-red-100 text-red-800{% endif %}
-                ">
-                  {{ screen.status_data.images.status|title }}
-                </span>
-              </div>
-              
-              <div class="flex items-center">
-                <span class="text-gray-600 text-sm mr-2">{% translate "Audio:" %}</span>
-                <span class="audio-status px-2 py-0.5 text-xs rounded-full
-                  {% if screen.status_data.voices.status == 'pending' %}bg-gray-100 text-gray-800{% endif %}
-                  {% if screen.status_data.voices.status == 'queued' %}bg-blue-100 text-blue-800{% endif %}
-                  {% if screen.status_data.voices.status == 'processing' %}bg-yellow-100 text-yellow-800{% endif %}
-                  {% if screen.status_data.voices.status == 'completed' %}bg-green-100 text-green-800{% endif %}
-                  {% if screen.status_data.voices.status == 'failed' %}bg-red-100 text-red-800{% endif %}
-                ">
-                  {{ screen.status_data.voices.status|title }}
-                </span>
-              </div>
-              
-              <div class="flex items-center">
-                <span class="text-gray-600 text-sm mr-2">{% translate "Preview:" %}</span>
-                <span class="preview-status px-2 py-0.5 text-xs rounded-full
-                  {% if screen.status_data.preview.status == 'pending' %}bg-gray-100 text-gray-800{% endif %}
-                  {% if screen.status_data.preview.status == 'queued' %}bg-blue-100 text-blue-800{% endif %}
-                  {% if screen.status_data.preview.status == 'processing' %}bg-yellow-100 text-yellow-800{% endif %}
-                  {% if screen.status_data.preview.status == 'completed' %}bg-green-100 text-green-800{% endif %}
-                  {% if screen.status_data.preview.status == 'failed' %}bg-red-100 text-red-800{% endif %}
-                ">
-                  {{ screen.status_data.preview.status|title }}
-                </span>
-              </div>
-            </div>
-            
-            <!-- Rest of the card content... -->
-            <!-- <div class="flex justify-between items-center mb-3">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden" id="screen-{{ screen.id }}">
+          <div class="p-4">
+            <div class="flex justify-between items-center mb-3">
               <h2 class="text-lg font-bold">{{ screen.name }}</h2>
               <span class="screen-status px-2 py-1 text-xs rounded-full 
                 {% if screen.status == 'draft' %}bg-gray-100 text-gray-800{% endif %}
@@ -647,10 +376,11 @@
                 {% if screen.status == 'failed' %}bg-red-100 text-red-800{% endif %}">
                 {{ screen.get_status_display }}
               </span>
-            </div> -->
+            </div>
             
             <!-- Component status -->
-            <!-- <div class="grid grid-cols-3 gap-2 mb-3">
+            <div class="grid grid-cols-3 gap-2 mb-3">
+              <!-- Image status -->
               <div class="flex items-center">
                 <span class="mr-2 text-xs">{% translate "Image" %}:</span>
                 <span class="images-status px-2 py-0.5 text-xs rounded-full 
@@ -677,6 +407,7 @@
                 {% endif %}
               </div>
               
+              <!-- Voice status -->
               <div class="flex items-center">
                 <span class="mr-2 text-xs">{% translate "Voice" %}:</span>
                 <span class="voices-status px-2 py-0.5 text-xs rounded-full 
@@ -703,6 +434,7 @@
                 {% endif %}
               </div>
               
+              <!-- Video status -->
               <div class="flex items-center">
                 <span class="mr-2 text-xs">{% translate "Video" %}:</span>
                 <span class="video-status px-2 py-0.5 text-xs rounded-full 
@@ -728,7 +460,7 @@
                   </span>
                 {% endif %}
               </div>
-            </div> -->
+            </div>
             
             <!-- Scene data preview -->
             <div class="mb-3">
@@ -781,7 +513,313 @@
         </div>
       {% endfor %}
     </div>
-  {% endif %}
+  {% else %}
+    <!-- Individual Screen View -->
+    <!-- Header -->
+    <div class="flex justify-between items-center mb-6">
+      <div class="flex items-center">
+        <h1 class="text-2xl font-bold">{{ screen.name }}</h1>
+        <span class="ml-3 px-3 py-1 text-sm rounded-full 
+          {% if screen.status == 'draft' %}bg-gray-100 text-gray-800{% endif %}
+          {% if screen.status == 'ready' %}bg-blue-100 text-blue-800{% endif %}
+          {% if screen.status == 'processing' %}bg-yellow-100 text-yellow-800{% endif %}
+          {% if screen.status == 'completed' %}bg-green-100 text-green-800{% endif %}
+          {% if screen.status == 'failed' %}bg-red-100 text-red-800{% endif %}">
+          {{ screen.get_status_display }}
+        </span>
+      </div>
+      <div>
+        {% if screen.script %}
+        <div class="flex space-x-3">
+          <a href="{% url 'workspaces:script_screens' workspace_id=workspace.id script_id=screen.script.id %}" class="btn-outline">
+            {% translate "View All Screens" %}
+          </a>
+          <a href="{% url 'workspaces:script_management' workspace_id=workspace.id script_id=screen.script.id %}" class="btn-outline">
+            {% translate "Back to Script" %}
+          </a>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  
+    <!-- Main content -->
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <!-- Left column: Scene data -->
+      <div class="lg:col-span-1">
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <h2 class="text-lg font-bold text-gray-900 mb-4">{% translate "Scene Data" %}</h2>
+          
+          {% if screen.scene_data %}
+            <div class="space-y-4">
+              {% if screen.scene_data.title %}
+              <div>
+                <h3 class="text-sm font-medium text-gray-500">{% translate "Title" %}</h3>
+                <p>{{ screen.scene_data.title }}</p>
+              </div>
+              {% endif %}
+              
+              {% if screen.scene_data.visual %}
+              <div>
+                <h3 class="text-sm font-medium text-gray-500">{% translate "Visual Description" %}</h3>
+                <p>{{ screen.scene_data.visual }}</p>
+              </div>
+              {% endif %}
+              
+              {% if screen.scene_data.narrator %}
+              <div>
+                <h3 class="text-sm font-medium text-gray-500">{% translate "Narration" %}</h3>
+                <p>{{ screen.scene_data.narrator }}</p>
+              </div>
+              {% endif %}
+              
+              {% if screen.scene_data.on_screen_text %}
+              <div>
+                <h3 class="text-sm font-medium text-gray-500">{% translate "On-Screen Text" %}</h3>
+                <p>{{ screen.scene_data.on_screen_text }}</p>
+              </div>
+              {% endif %}
+            </div>
+          {% else %}
+            <p class="text-gray-500">{% translate "No scene data available." %}</p>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- Middle column: Media generation -->
+      <div class="lg:col-span-2">
+        <!-- Component status cards -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <!-- Image status -->
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="font-medium">{% translate "Image" %}</h3>
+              <span class="px-2 py-0.5 text-xs rounded-full 
+                {% if screen.status_data.images.status == 'pending' or not screen.status_data.images %}bg-gray-100 text-gray-800{% endif %}
+                {% if screen.status_data.images.status == 'processing' %}bg-yellow-100 text-yellow-800{% endif %}
+                {% if screen.status_data.images.status == 'completed' %}bg-green-100 text-green-800{% endif %}
+                {% if screen.status_data.images.status == 'failed' %}bg-red-100 text-red-800{% endif %}">
+                {% if screen.status_data.images.status %}
+                  {{ screen.status_data.images.status }}
+                {% else %}
+                  pending
+                {% endif %}
+              </span>
+            </div>
+            <div class="flex space-x-2 mt-2">
+              <button id="generateImageBtn" class="btn-primary-sm flex-1" 
+                {% if screen.status_data.images.status == 'processing' %}disabled{% endif %}>
+                {% if screen.status_data.images.status == 'completed' %}
+                  {% translate "Regenerate Image" %}
+                {% else %}
+                  {% translate "Generate Image" %}
+                {% endif %}
+              </button>
+              <button id="selectExistingImageBtn" class="btn-outline-sm flex-1">
+                {% translate "Select Existing" %}
+              </button>
+            </div>
+          </div>
+          
+          <!-- Voice status -->
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="font-medium">{% translate "Voice" %}</h3>
+              <span class="px-2 py-0.5 text-xs rounded-full 
+                {% if screen.status_data.voices.status == 'pending' or not screen.status_data.voices %}bg-gray-100 text-gray-800{% endif %}
+                {% if screen.status_data.voices.status == 'processing' %}bg-yellow-100 text-yellow-800{% endif %}
+                {% if screen.status_data.voices.status == 'completed' %}bg-green-100 text-green-800{% endif %}
+                {% if screen.status_data.voices.status == 'failed' %}bg-red-100 text-red-800{% endif %}">
+                {% if screen.status_data.voices.status %}
+                  {{ screen.status_data.voices.status }}
+                {% else %}
+                  pending
+                {% endif %}
+              </span>
+            </div>
+            <button id="generateVoiceBtn" class="btn-primary-sm w-full mt-2"
+              {% if screen.status_data.voices.status == 'processing' %}disabled{% endif %}>
+              {% if screen.status_data.voices.status == 'completed' %}
+                {% translate "Regenerate Voice" %}
+              {% else %}
+                {% translate "Generate Voice" %}
+              {% endif %}
+            </button>
+          </div>
+          
+          <!-- Video status -->
+          <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+            <div class="flex justify-between items-center mb-2">
+              <h3 class="font-medium">{% translate "Video" %}</h3>
+              <span class="px-2 py-0.5 text-xs rounded-full 
+                {% if screen.status_data.video.status == 'pending' or not screen.status_data.video %}bg-gray-100 text-gray-800{% endif %}
+                {% if screen.status_data.video.status == 'processing' %}bg-yellow-100 text-yellow-800{% endif %}
+                {% if screen.status_data.video.status == 'completed' %}bg-green-100 text-green-800{% endif %}
+                {% if screen.status_data.video.status == 'failed' %}bg-red-100 text-red-800{% endif %}">
+                {% if screen.status_data.video.status %}
+                  {{ screen.status_data.video.status }}
+                {% else %}
+                  pending
+                {% endif %}
+              </span>
+            </div>
+            <button id="generateVideoBtn" class="btn-primary-sm w-full mt-2"
+              {% if not screen.image or not screen.voice or screen.status_data.video.status == 'processing' %}disabled{% endif %}>
+              {% if screen.status_data.video.status == 'completed' %}
+                {% translate "Regenerate Video" %}
+              {% else %}
+                {% translate "Generate Video" %}
+              {% endif %}
+            </button>
+          </div>
+        </div>
+        
+        <!-- Preview area -->
+        <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-6">
+          <h2 class="text-lg font-bold text-gray-900 mb-4">{% translate "Preview" %}</h2>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Image preview -->
+            <div>
+              <h3 class="text-md font-medium mb-2">{% translate "Image" %}</h3>
+              {% if screen.image %}
+                <img src="{{ screen.image.file.url }}" alt="{{ screen.name }}" class="w-full h-auto rounded-lg border border-gray-200" />
+              {% else %}
+                <div class="w-full h-48 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                  <p class="text-gray-500">{% translate "No image generated yet" %}</p>
+                </div>
+              {% endif %}
+            </div>
+            
+            <!-- Voice preview -->
+            <div>
+              <h3 class="text-md font-medium mb-2">{% translate "Voice" %}</h3>
+              {% if screen.voice %}
+                <audio controls class="w-full">
+                  <source src="{{ screen.voice.file.url }}" type="audio/mpeg" />
+                  {% translate "Your browser does not support the audio element." %}
+                </audio>
+              {% else %}
+                <div class="w-full h-48 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+                  <p class="text-gray-500">{% translate "No voice generated yet" %}</p>
+                </div>
+              {% endif %}
+            </div>
+          </div>
+          
+          <!-- Video preview -->
+          <div class="mt-6">
+            <h3 class="text-md font-medium mb-2">{% translate "Video" %}</h3>
+            {% if screen.output_file %}
+              <video controls class="w-full rounded-lg border border-gray-200">
+                <source src="{{ screen.output_file.url }}" type="video/mp4" />
+                {% translate "Your browser does not support the video element." %}
+              </video>
+            {% else %}
+            <div class="w-full h-64 bg-gray-100 rounded-lg border border-gray-200 flex items-center justify-center">
+              <p class="text-gray-500">{% translate "No video generated yet" %}</p>
+            </div>
+          {% endif %}
+        </div>
+      </div>
+      
+      <!-- Generation options -->
+      <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+        <h2 class="text-lg font-bold text-gray-900 mb-4">{% translate "Generation Options" %}</h2>
+        
+        <!-- Image generation options -->
+        <div id="imageOptions" class="mb-6">
+          <h3 class="text-md font-medium mb-3">{% translate "Image Options" %}</h3>
+          <form id="imageForm">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{% translate "Prompt" %}</label>
+                <textarea name="prompt" class="w-full p-2 border border-gray-300 rounded-md" rows="3">{{ screen.scene_data.visual }}</textarea>
+              </div>
+              <div>
+                <div class="mb-3">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">{% translate "Size" %}</label>
+                  <select name="size" class="w-full p-2 border border-gray-300 rounded-md">
+                    <option value="1024x1024">1024x1024</option>
+                    <option value="1024x1792">1024x1792</option>
+                    <option value="1792x1024">1792x1024</option>
+                  </select>
+                </div>
+                <div class="mb-3">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">{% translate "Quality" %}</label>
+                  <select name="quality" class="w-full p-2 border border-gray-300 rounded-md">
+                    <option value="standard">{% translate "Standard" %}</option>
+                    <option value="hd">{% translate "HD" %}</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">{% translate "Style" %}</label>
+                  <select name="style" class="w-full p-2 border border-gray-300 rounded-md">
+                    <option value="vivid">{% translate "Vivid" %}</option>
+                    <option value="natural">{% translate "Natural" %}</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+        
+        <!-- Voice generation options -->
+        <div id="voiceOptions" class="mb-6">
+          <h3 class="text-md font-medium mb-3">{% translate "Voice Options" %}</h3>
+          <form id="voiceForm">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{% translate "Text" %}</label>
+                <textarea name="text" class="w-full p-2 border border-gray-300 rounded-md" rows="3">{{ screen.scene_data.narrator }}</textarea>
+              </div>
+              <div>
+                <div class="mb-3">
+                  <label class="block text-sm font-medium text-gray-700 mb-1">{% translate "Voice" %}</label>
+                  <select name="voice_id" class="w-full p-2 border border-gray-300 rounded-md">
+                    {% for voice in available_voices %}
+                      <option value="{{ voice.id }}">{{ voice.name }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-sm font-medium text-gray-700 mb-1">{% translate "Model" %}</label>
+                  <select name="model_id" class="w-full p-2 border border-gray-300 rounded-md">
+                    <option value="eleven_multilingual_v2">{% translate "Multilingual v2" %}</option>
+                    <option value="eleven_monolingual_v1">{% translate "Monolingual v1" %}</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </form>
+        </div>
+        
+        <!-- Video generation options -->
+        <div id="videoOptions">
+          <h3 class="text-md font-medium mb-3">{% translate "Video Options" %}</h3>
+          <form id="videoForm">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{% translate "Quality" %}</label>
+                <select name="quality" class="w-full p-2 border border-gray-300 rounded-md">
+                  <option value="low">{% translate "Low" %}</option>
+                  <option value="medium" selected>{% translate "Medium" %}</option>
+                  <option value="high">{% translate "High" %}</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">{% translate "Background Music" %}</label>
+                <select name="background_music_id" class="w-full p-2 border border-gray-300 rounded-md">
+                  <option value="">{% translate "None" %}</option>
+                  <!-- Add background music options here if available -->
+                </select>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endif %}
 </div>
 
 <!-- Loading overlay -->
@@ -880,301 +918,309 @@ document.addEventListener('DOMContentLoaded', function() {
     generateAllBtn.classList.remove('hidden');
   });
   
-  // Handle batch generation form submission
-  if (startBatchBtn) {
-    startBatchBtn.addEventListener('click', function() {
-      // Get form data
-      const form = document.getElementById('batchGenerationForm');
-      const formData = new FormData(form);
+  // Batch generation
+  startBatchBtn.addEventListener('click', function() {
+    const form = document.getElementById('batchGenerationForm');
+    const formData = new FormData(form);
+    formData.append('script_id', scriptId);
+    
+    // Show loading overlay
+    loadingMessage.textContent = '{% translate "Starting batch generation. This may take several minutes depending on the number of screens..." %}';
+    loadingOverlay.classList.remove('hidden');
+    
+    // Disable button
+    this.disabled = true;
+    
+    // Send request
+    fetch(`/workspaces/${workspaceId}/scripts/${scriptId}/batch-generate/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken
+      },
+      body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      // Hide loading overlay
+      loadingOverlay.classList.add('hidden');
       
-      // Disable button to prevent double submission
-      startBatchBtn.disabled = true;
-      startBatchBtn.textContent = '{% translate "Processing..." %}';
-      
-      // Submit the form via fetch API
-      fetch(`/workspaces/{{ workspace.id }}/scripts/{{ script.id }}/batch/`, {
-        method: 'POST',
-        headers: {
-          'X-CSRFToken': '{{ csrf_token }}'
-        },
-        body: formData
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          // Hide the form
-          batchOptions.classList.add('hidden');
+      if (data.success) {
+        // Show success toast
+        toastIcon.innerHTML = '<svg class="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+        toastMessage.textContent = `${data.message} Processed ${data.processed_screens} of ${data.total_screens} screens.`;
+        
+        // Show errors if any
+        if (data.errors && data.errors.length > 0) {
+          const errorList = document.createElement('ul');
+          errorList.className = 'mt-2 text-sm text-red-500 list-disc list-inside';
           
-          // Show success message
-          alert(data.message);
+          data.errors.forEach(error => {
+            const errorItem = document.createElement('li');
+            errorItem.textContent = error;
+            errorList.appendChild(errorItem);
+          });
           
-          // Show progress bars for queued tasks
-          if (data.task_data) {
-            Object.keys(data.task_data).forEach(screenId => {
-              const components = data.task_data[screenId].components;
-              
-              // Show appropriate progress bars based on components being processed
-              if (components.image) {
-                const progressBar = document.getElementById(`progress-image_generation-${screenId}`);
-                if (progressBar) {
-                  progressBar.classList.remove('hidden');
-                }
-              }
-              
-              if (components.audio) {
-                const progressBar = document.getElementById(`progress-voice_generation-${screenId}`);
-                if (progressBar) {
-                  progressBar.classList.remove('hidden');
-                }
-              }
-              
-              if (components.preview) {
-                const progressBar = document.getElementById(`progress-preview_generation-${screenId}`);
-                if (progressBar) {
-                  progressBar.classList.remove('hidden');
-                }
-              }
-              
-              if (components.video) {
-                const progressBar = document.getElementById(`progress-video_generation-${screenId}`);
-                if (progressBar) {
-                  progressBar.classList.remove('hidden');
-                }
-              }
-            });
-          }
-        } else {
-          // Show error message
-          alert(`{% translate "Error" %}: ${data.error}`);
+          toastMessage.appendChild(errorList);
         }
         
-        // Re-enable button
-        startBatchBtn.disabled = false;
-        startBatchBtn.textContent = '{% translate "Start Generation" %}';
-      })
-      .catch(error => {
-        console.error('Error submitting batch generation form:', error);
+        toast.classList.remove('hidden');
         
-        // Show error message
-        alert('{% translate "An error occurred while submitting the form. Please try again." %}');
+        // Reload page after 5 seconds
+        setTimeout(() => {
+          window.location.reload();
+        }, 5000);
+      } else {
+        // Show error toast
+        toastIcon.innerHTML = '<svg class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+        toastMessage.textContent = data.error;
+        toast.classList.remove('hidden');
         
-        // Re-enable button
-        startBatchBtn.disabled = false;
-        startBatchBtn.textContent = '{% translate "Start Generation" %}';
-      });
+        // Enable button
+        this.disabled = false;
+        
+        // Hide batch options
+        batchOptions.classList.add('hidden');
+        generateAllBtn.classList.remove('hidden');
+      }
+      
+      // Hide toast after 5 seconds
+      setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 5000);
+    })
+    .catch(error => {
+      // Hide loading overlay
+      loadingOverlay.classList.add('hidden');
+      
+      // Show error toast
+      toastIcon.innerHTML = '<svg class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+      toastMessage.textContent = 'An error occurred. Please try again.';
+      toast.classList.remove('hidden');
+      
+      // Enable button
+      this.disabled = false;
+      
+      // Hide batch options
+      batchOptions.classList.add('hidden');
+      generateAllBtn.classList.remove('hidden');
+      
+      // Hide toast after 5 seconds
+      setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 5000);
     });
-  }
+  });
   
   {% else %}
   // Individual screen view JS
   const screenId = '{{ screen.id }}';
   
-  // // Generate image
-  // document.getElementById('generateImageBtn').addEventListener('click', function() {
-  //   const form = document.getElementById('imageForm');
-  //   const formData = new FormData(form);
+  // Generate image
+  document.getElementById('generateImageBtn').addEventListener('click', function() {
+    const form = document.getElementById('imageForm');
+    const formData = new FormData(form);
     
-  //   // Show loading overlay
-  //   loadingMessage.textContent = '{% translate "Generating image..." %}';
-  //   loadingOverlay.classList.remove('hidden');
+    // Show loading overlay
+    loadingMessage.textContent = '{% translate "Generating image..." %}';
+    loadingOverlay.classList.remove('hidden');
     
-  //   // Disable button
-  //   this.disabled = true;
+    // Disable button
+    this.disabled = true;
     
-  //   // Send request
-  //   fetch(`/workspaces/${workspaceId}/screens/${screenId}/generate-image/`, {
-  //     method: 'POST',
-  //     headers: {
-  //       'X-CSRFToken': csrfToken
-  //     },
-  //     body: formData
-  //   })
-  //   .then(response => response.json())
-  //   .then(data => {
-  //     // Hide loading overlay
-  //     loadingOverlay.classList.add('hidden');
+    // Send request
+    fetch(`/workspaces/${workspaceId}/screens/${screenId}/generate-image/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken
+      },
+      body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      // Hide loading overlay
+      loadingOverlay.classList.add('hidden');
       
-  //     if (data.success) {
-  //       // Show success toast
-  //       toastIcon.innerHTML = '<svg class="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
-  //       toastMessage.textContent = data.message;
-  //       toast.classList.remove('hidden');
+      if (data.success) {
+        // Show success toast
+        toastIcon.innerHTML = '<svg class="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+        toastMessage.textContent = data.message;
+        toast.classList.remove('hidden');
         
-  //       // Reload page after 2 seconds
-  //       setTimeout(() => {
-  //         window.location.reload();
-  //       }, 2000);
-  //     } else {
-  //       // Show error toast
-  //       toastIcon.innerHTML = '<svg class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
-  //       toastMessage.textContent = data.error;
-  //       toast.classList.remove('hidden');
+        // Reload page after 2 seconds
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        // Show error toast
+        toastIcon.innerHTML = '<svg class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+        toastMessage.textContent = data.error;
+        toast.classList.remove('hidden');
         
-  //       // Enable button
-  //       this.disabled = false;
-  //     }
+        // Enable button
+        this.disabled = false;
+      }
       
-  //     // Hide toast after 5 seconds
-  //     setTimeout(() => {
-  //       toast.classList.add('hidden');
-  //     }, 5000);
-  //   })
-  //   .catch(error => {
-  //     // Hide loading overlay
-  //     loadingOverlay.classList.add('hidden');
+      // Hide toast after 5 seconds
+      setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 5000);
+    })
+    .catch(error => {
+      // Hide loading overlay
+      loadingOverlay.classList.add('hidden');
       
-  //     // Show error toast
-  //     toastIcon.innerHTML = '<svg class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
-  //     toastMessage.textContent = 'An error occurred. Please try again.';
-  //     toast.classList.remove('hidden');
+      // Show error toast
+      toastIcon.innerHTML = '<svg class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+      toastMessage.textContent = 'An error occurred. Please try again.';
+      toast.classList.remove('hidden');
       
-  //     // Enable button
-  //     this.disabled = false;
+      // Enable button
+      this.disabled = false;
       
-  //     // Hide toast after 5 seconds
-  //     setTimeout(() => {
-  //       toast.classList.add('hidden');
-  //     }, 5000);
-  //   });
-  // });
+      // Hide toast after 5 seconds
+      setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 5000);
+    });
+  });
   
-  // // Generate voice
-  // document.getElementById('generateVoiceBtn').addEventListener('click', function() {
-  //   const form = document.getElementById('voiceForm');
-  //   const formData = new FormData(form);
+  // Generate voice
+  document.getElementById('generateVoiceBtn').addEventListener('click', function() {
+    const form = document.getElementById('voiceForm');
+    const formData = new FormData(form);
     
-  //   // Show loading overlay
-  //   loadingMessage.textContent = '{% translate "Generating voice..." %}';
-  //   loadingOverlay.classList.remove('hidden');
+    // Show loading overlay
+    loadingMessage.textContent = '{% translate "Generating voice..." %}';
+    loadingOverlay.classList.remove('hidden');
     
-  //   // Disable button
-  //   this.disabled = true;
+    // Disable button
+    this.disabled = true;
     
-  //   // Send request
-  //   fetch(`/workspaces/${workspaceId}/screens/${screenId}/generate-voice/`, {
-  //     method: 'POST',
-  //     headers: {
-  //       'X-CSRFToken': csrfToken
-  //     },
-  //     body: formData
-  //   })
-  //   .then(response => response.json())
-  //   .then(data => {
-  //     // Hide loading overlay
-  //     loadingOverlay.classList.add('hidden');
+    // Send request
+    fetch(`/workspaces/${workspaceId}/screens/${screenId}/generate-voice/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken
+      },
+      body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      // Hide loading overlay
+      loadingOverlay.classList.add('hidden');
       
-  //     if (data.success) {
-  //       // Show success toast
-  //       toastIcon.innerHTML = '<svg class="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
-  //       toastMessage.textContent = data.message;
-  //       toast.classList.remove('hidden');
+      if (data.success) {
+        // Show success toast
+        toastIcon.innerHTML = '<svg class="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+        toastMessage.textContent = data.message;
+        toast.classList.remove('hidden');
         
-  //       // Reload page after 2 seconds
-  //       setTimeout(() => {
-  //         window.location.reload();
-  //       }, 2000);
-  //     } else {
-  //       // Show error toast
-  //       toastIcon.innerHTML = '<svg class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
-  //       toastMessage.textContent = data.error;
-  //       toast.classList.remove('hidden');
+        // Reload page after 2 seconds
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        // Show error toast
+        toastIcon.innerHTML = '<svg class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+        toastMessage.textContent = data.error;
+        toast.classList.remove('hidden');
         
-  //       // Enable button
-  //       this.disabled = false;
-  //     }
+        // Enable button
+        this.disabled = false;
+      }
       
-  //     // Hide toast after 5 seconds
-  //     setTimeout(() => {
-  //       toast.classList.add('hidden');
-  //     }, 5000);
-  //   })
-  //   .catch(error => {
-  //     // Hide loading overlay
-  //     loadingOverlay.classList.add('hidden');
+      // Hide toast after 5 seconds
+      setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 5000);
+    })
+    .catch(error => {
+      // Hide loading overlay
+      loadingOverlay.classList.add('hidden');
       
-  //     // Show error toast
-  //     toastIcon.innerHTML = '<svg class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
-  //     toastMessage.textContent = 'An error occurred. Please try again.';
-  //     toast.classList.remove('hidden');
+      // Show error toast
+      toastIcon.innerHTML = '<svg class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+      toastMessage.textContent = 'An error occurred. Please try again.';
+      toast.classList.remove('hidden');
       
-  //     // Enable button
-  //     this.disabled = false;
+      // Enable button
+      this.disabled = false;
       
-  //     // Hide toast after 5 seconds
-  //     setTimeout(() => {
-  //       toast.classList.add('hidden');
-  //     }, 5000);
-  //   });
-  // });
+      // Hide toast after 5 seconds
+      setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 5000);
+    });
+  });
   
-  // // Generate video
-  // document.getElementById('generateVideoBtn').addEventListener('click', function() {
-  //   const form = document.getElementById('videoForm');
-  //   const formData = new FormData(form);
+  // Generate video
+  document.getElementById('generateVideoBtn').addEventListener('click', function() {
+    const form = document.getElementById('videoForm');
+    const formData = new FormData(form);
     
-  //   // Show loading overlay
-  //   loadingMessage.textContent = '{% translate "Generating video..." %}';
-  //   loadingOverlay.classList.remove('hidden');
+    // Show loading overlay
+    loadingMessage.textContent = '{% translate "Generating video..." %}';
+    loadingOverlay.classList.remove('hidden');
     
-  //   // Disable button
-  //   this.disabled = true;
+    // Disable button
+    this.disabled = true;
     
-  //   // Send request
-  //   fetch(`/workspaces/${workspaceId}/screens/${screenId}/generate-video/`, {
-  //     method: 'POST',
-  //     headers: {
-  //       'X-CSRFToken': csrfToken
-  //     },
-  //     body: formData
-  //   })
-  //   .then(response => response.json())
-  //   .then(data => {
-  //     // Hide loading overlay
-  //     loadingOverlay.classList.add('hidden');
+    // Send request
+    fetch(`/workspaces/${workspaceId}/screens/${screenId}/generate-video/`, {
+      method: 'POST',
+      headers: {
+        'X-CSRFToken': csrfToken
+      },
+      body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+      // Hide loading overlay
+      loadingOverlay.classList.add('hidden');
       
-  //     if (data.success) {
-  //       // Show success toast
-  //       toastIcon.innerHTML = '<svg class="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
-  //       toastMessage.textContent = data.message;
-  //       toast.classList.remove('hidden');
+      if (data.success) {
+        // Show success toast
+        toastIcon.innerHTML = '<svg class="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+        toastMessage.textContent = data.message;
+        toast.classList.remove('hidden');
         
-  //       // Reload page after 2 seconds
-  //       setTimeout(() => {
-  //         window.location.reload();
-  //       }, 2000);
-  //     } else {
-  //       // Show error toast
-  //       toastIcon.innerHTML = '<svg class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
-  //       toastMessage.textContent = data.error;
-  //       toast.classList.remove('hidden');
+        // Reload page after 2 seconds
+        setTimeout(() => {
+          window.location.reload();
+        }, 2000);
+      } else {
+        // Show error toast
+        toastIcon.innerHTML = '<svg class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+        toastMessage.textContent = data.error;
+        toast.classList.remove('hidden');
         
-  //       // Enable button
-  //       this.disabled = false;
-  //     }
+        // Enable button
+        this.disabled = false;
+      }
       
-  //     // Hide toast after 5 seconds
-  //     setTimeout(() => {
-  //       toast.classList.add('hidden');
-  //     }, 5000);
-  //   })
-  //   .catch(error => {
-  //     // Hide loading overlay
-  //     loadingOverlay.classList.add('hidden');
+      // Hide toast after 5 seconds
+      setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 5000);
+    })
+    .catch(error => {
+      // Hide loading overlay
+      loadingOverlay.classList.add('hidden');
       
-  //     // Show error toast
-  //     toastIcon.innerHTML = '<svg class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
-  //     toastMessage.textContent = 'An error occurred. Please try again.';
-  //     toast.classList.remove('hidden');
+      // Show error toast
+      toastIcon.innerHTML = '<svg class="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>';
+      toastMessage.textContent = 'An error occurred. Please try again.';
+      toast.classList.remove('hidden');
       
-  //     // Enable button
-  //     this.disabled = false;
+      // Enable button
+      this.disabled = false;
       
-  //     // Hide toast after 5 seconds
-  //     setTimeout(() => {
-  //       toast.classList.add('hidden');
-  //     }, 5000);
-  //   });
-  // });
+      // Hide toast after 5 seconds
+      setTimeout(() => {
+        toast.classList.add('hidden');
+      }, 5000);
+    });
+  });
   
   // Image selection modal
   const imageSelectionModal = document.getElementById('imageSelectionModal');
@@ -1186,10 +1232,10 @@ document.addEventListener('DOMContentLoaded', function() {
   let selectedImageId = null;
   
   // Show modal and load images
-  // selectExistingImageBtn.addEventListener('click', function() {
-  //   imageSelectionModal.classList.remove('hidden');
-  //   loadExistingImages();
-  // });
+  selectExistingImageBtn.addEventListener('click', function() {
+    imageSelectionModal.classList.remove('hidden');
+    loadExistingImages();
+  });
 
   function loadExistingImages() {
     // Show loading overlay

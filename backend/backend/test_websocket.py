@@ -1,0 +1,1 @@
+from backend.channels.utils import send_progress_update; from uuid import uuid4; send_progress_update(workspace_id="42444629-3d31-4e3c-ac03-d8a007e054da", task_id=str(uuid4()), task_type="test", status="processing", progress=50, message="This is a test message from the console", entity_id="test-entity"); print("Test progress update sent. Check browser WebSocket connection.")

@@ -9,7 +9,7 @@
     <meta name="description" content="Professional Video Creation Platform" />
     <meta name="author" content="karthicksakkaravarthi@gmail.com" />
     <link rel="icon" href="{% static 'images/favicons/favicon.ico' %}" />
-    
+    {% block extra_head %}{% endblock extra_head %}
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     {% comment %} <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script> {% endcomment %}
