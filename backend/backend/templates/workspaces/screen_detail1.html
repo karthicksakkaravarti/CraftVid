@@ -560,22 +560,79 @@
               
               {% if screen.scene_data.visual %}
               <div>
-                <h3 class="text-sm font-medium text-gray-500">{% translate "Visual Description" %}</h3>
-                <p>{{ screen.scene_data.visual }}</p>
+                <div class="flex justify-between items-center">
+                  <h3 class="text-sm font-medium text-gray-500">{% translate "Visual Description" %}</h3>
+                  <button type="button" class="text-sm text-blue-600 hover:text-blue-800" 
+                    onclick="showEditForm('visual-form')">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                    </svg>
+                    {% translate "Edit" %}
+                  </button>
+                </div>
+                <p id="visual-text">{{ screen.scene_data.visual }}</p>
+                <form id="visual-form" class="mt-2 hidden" action="{% url 'workspaces:screen_detail' workspace_id=workspace.id screen_id=screen.id %}" method="POST">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="edit_scene_data">
+                  <input type="hidden" name="field" value="visual">
+                  <textarea name="value" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm" rows="4">{{ screen.scene_data.visual }}</textarea>
+                  <div class="flex justify-end mt-2 space-x-2">
+                    <button type="button" class="btn-text-sm" onclick="hideEditForm('visual-form')">{% translate "Cancel" %}</button>
+                    <button type="submit" class="btn-primary-sm">{% translate "Save" %}</button>
+                  </div>
+                </form>
               </div>
               {% endif %}
               
               {% if screen.scene_data.narrator %}
               <div>
-                <h3 class="text-sm font-medium text-gray-500">{% translate "Narration" %}</h3>
-                <p>{{ screen.scene_data.narrator }}</p>
+                <div class="flex justify-between items-center">
+                  <h3 class="text-sm font-medium text-gray-500">{% translate "Narration" %}</h3>
+                  <button type="button" class="text-sm text-blue-600 hover:text-blue-800" 
+                    onclick="showEditForm('narrator-form')">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                    </svg>
+                    {% translate "Edit" %}
+                  </button>
+                </div>
+                <p id="narrator-text">{{ screen.scene_data.narrator }}</p>
+                <form id="narrator-form" class="mt-2 hidden" action="{% url 'workspaces:screen_detail' workspace_id=workspace.id screen_id=screen.id %}" method="POST">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="edit_scene_data">
+                  <input type="hidden" name="field" value="narrator">
+                  <textarea name="value" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm" rows="4">{{ screen.scene_data.narrator }}</textarea>
+                  <div class="flex justify-end mt-2 space-x-2">
+                    <button type="button" class="btn-text-sm" onclick="hideEditForm('narrator-form')">{% translate "Cancel" %}</button>
+                    <button type="submit" class="btn-primary-sm">{% translate "Save" %}</button>
+                  </div>
+                </form>
               </div>
               {% endif %}
               
               {% if screen.scene_data.on_screen_text %}
               <div>
-                <h3 class="text-sm font-medium text-gray-500">{% translate "On-Screen Text" %}</h3>
-                <p>{{ screen.scene_data.on_screen_text }}</p>
+                <div class="flex justify-between items-center">
+                  <h3 class="text-sm font-medium text-gray-500">{% translate "On-Screen Text" %}</h3>
+                  <button type="button" class="text-sm text-blue-600 hover:text-blue-800" 
+                    onclick="showEditForm('on-screen-text-form')">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 inline" viewBox="0 0 20 20" fill="currentColor">
+                      <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+                    </svg>
+                    {% translate "Edit" %}
+                  </button>
+                </div>
+                <p id="on-screen-text-text">{{ screen.scene_data.on_screen_text }}</p>
+                <form id="on-screen-text-form" class="mt-2 hidden" action="{% url 'workspaces:screen_detail' workspace_id=workspace.id screen_id=screen.id %}" method="POST">
+                  {% csrf_token %}
+                  <input type="hidden" name="action" value="edit_scene_data">
+                  <input type="hidden" name="field" value="on_screen_text">
+                  <textarea name="value" class="w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-sm" rows="4">{{ screen.scene_data.on_screen_text }}</textarea>
+                  <div class="flex justify-end mt-2 space-x-2">
+                    <button type="button" class="btn-text-sm" onclick="hideEditForm('on-screen-text-form')">{% translate "Cancel" %}</button>
+                    <button type="submit" class="btn-primary-sm">{% translate "Save" %}</button>
+                  </div>
+                </form>
               </div>
               {% endif %}
             </div>
@@ -884,6 +941,30 @@
   </div>
 </div>
 </div>
+
+<script>
+  function showEditForm(formId) {
+    // Hide the text display
+    const textId = formId.replace('-form', '-text');
+    document.getElementById(textId).classList.add('hidden');
+    
+    // Show the edit form
+    document.getElementById(formId).classList.remove('hidden');
+  }
+  
+  function hideEditForm(formId) {
+    // Show the text display
+    const textId = formId.replace('-form', '-text');
+    document.getElementById(textId).classList.remove('hidden');
+    
+    // Hide the edit form
+    document.getElementById(formId).classList.add('hidden');
+  }
+  
+  document.addEventListener('DOMContentLoaded', function() {
+    // Initialize existing JS functionality
+  });
+</script>
 {% endblock content %}
 
 {% block extra_js %}

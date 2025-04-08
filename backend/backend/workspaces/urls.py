@@ -37,7 +37,8 @@ from backend.workspaces.views import (
     IdeaDeleteView,
     IdeaExecuteView,
     UpdatePublishingStatusView,
-    ScreenDetail1View
+    ScreenDetail1View,
+    ScriptCreateView
 )
 from rest_framework_nested import routers
 
@@ -85,6 +86,7 @@ web_urlpatterns = [
     path('<uuid:workspace_id>/script-editor/', ScriptEditorView.as_view(), name='script_editor'),
     path('<uuid:workspace_id>/generate-script/', GenerateScriptView.as_view(), name='generate_script'),
     path('<uuid:workspace_id>/scripts/', WorkspaceScriptsView.as_view(), name='script_list'),
+    path('<uuid:workspace_id>/scripts/create/', ScriptCreateView.as_view(), name='script_create'),
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/', ScriptManagementView.as_view(), name='script_management'),
     path('<uuid:workspace_id>/scripts/<uuid:script_id>/screens/', ScreenDetailView.as_view(), name='script_screens'),
     path("<uuid:workspace_id>/scripts/<uuid:script_id>/update-publishing-status/", UpdatePublishingStatusView.as_view(), name="update_publishing_status"),

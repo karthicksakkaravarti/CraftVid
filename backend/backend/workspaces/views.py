@@ -1105,19 +1105,72 @@ class ScriptUpdateView(LoginRequiredMixin, UserWorkspacePermissionMixin, View):
                     'script_id': script.id
                 }) if create_new_version else None
             })
-            
         except Exception as e:
-            # Log the error
             logger.error(f"Error updating script: {str(e)}")
-            
-            # Return error response
             return JsonResponse({
                 'success': False,
                 'error': str(e)
             })
 
 
-class ScriptFinalizeView(LoginRequiredMixin, UserWorkspacePermissionMixin, View):
+class ScriptCreateView(LoginRequiredMixin, UserWorkspacePermissionMixin, View):
+    """View for creating a new script."""
+    
+    def post(self, request, workspace_id):
+        """Create a new script."""
+        try:
+            # Check if user has access to the workspace
+            workspace = get_object_or_404(
+                Workspace.objects.filter(
+                    Q(owner=request.user) | Q(members=request.user)
+                ),
+                id=workspace_id
+            )
+            
+            # Get form data
+            content = request.POST.get('content')
+            title = request.POST.get('title', 'New Script')
+            
+            # Validate required fields
+            if not content:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Content is required'
+                })
+            
+            # Import the script service
+            from backend.workspaces.services.script_service import ScriptService
+            
+            # Create script
+            script = ScriptService.create_script(
+                workspace_id=str(workspace.id),
+                title=title,
+                content=content,
+                topic="",
+                user_id=request.user.id,
+                status="draft"
+            )
+            
+            # Return JSON response
+            return JsonResponse({
+                'success': True,
+                'script_id': str(script.id),
+                'version': script.version,
+                'message': _('Script created successfully'),
+                'redirect_url': reverse('workspaces:script_management', kwargs={
+                    'workspace_id': workspace_id,
+                    'script_id': script.id
+                })
+            })
+        except Exception as e:
+            logger.error(f"Error creating script: {str(e)}")
+            return JsonResponse({
+                'success': False,
+                'error': str(e)
+            })
+
+
+class ScriptFinalizeView(LoginRequiredMixin, UserWorkspacePermissionMixin, DetailView):
     """View for finalizing a script."""
     
     def post(self, request, workspace_id, script_id):
